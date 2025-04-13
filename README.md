@@ -19,4 +19,4 @@ Sprint 0 is live. Contribute now, rise with the tide.
 ---
 
 ## License
-Governed by the MoDEM Ethical Open License.# modem-os
+Governed by the MoDEM Ethical Open License. #modem-os
