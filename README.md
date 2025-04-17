@@ -1,22 +1,16 @@
 # MoDEM: Modular Decentralized Execution Mesh
 
-Built by Contribution. Stewarded by Trust. Owned by No One.
+A modular tree-based AI system with:
+- SAP (Synthetic Action Proposals)
+- SYRUP (Synthesis of Yielded Reasoning Under Proposals)
+- MAPLE (Model-Aided Policy and Learning Engine)
+- BranchScript recording
+- DeepSeek R1 LLM integration
+- Coconut latent reasoning
 
----
+## Components
+- `core/router/`: SAP generation, scoring, latent execution, branch recording
+- `core/task_manager/`: Task queue, tracking, prioritization, recovery
+- `org/metrics/`: Retrospectives and BranchScripts
 
-## Quickstart
-- [MoDEM Charter](./charter/CHARTER.md)
-- [Values Pledge](./charter/VALUES_PLEDGE.md)
-- [Sprint 0 Launch](./charter/SPRINT_0.md)
-
----
-
-## Join Sprint 0
-Sprint 0 is live. Contribute now, rise with the tide.
-
-[Join Sprint 0 Discussion](https://github.com/jameskierstead/modem-os/discussions)
-
----
-
-## License
-Governed by the MoDEM Ethical Open License. #modem-os
+Powered by Ollama running DeepSeek R1 locally.
