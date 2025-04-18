@@ -1,0 +1,6 @@
+{
+  "timestamp": "2025-04-18T20:34:52.479804",
+  "prompt": "How do scroll-based AI agents coordinate in a federated mesh?",
+  "steps": [],
+  "result": "[Router error: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /mcp/route (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x101ec78c0>: Failed to establish a new connection: [Errno 61] Connection refused'))]"
+}
