@@ -1,5 +1,6 @@
 # MoDEM Main Runner
-
+from core.research.replay_engine import replay_trace
+from core.research.research_session import run_deep_research
 from core.task_manager.task_queue import TaskQueue
 from core.task_manager.task_tracker import TaskTracker
 from core.task_manager.task_prioritizer import TaskPrioritizer
@@ -53,5 +54,19 @@ def new_task(prompt, latent_mode=True):
 
 # Run
 if __name__ == "__main__":
-    result = new_task("Draft a cybersecurity incident report.", latent_mode=True)
-    print("Final Result:", result)
+    import sys
+    
+    mode = sys.argv[1] if len(sys.argv) > 1 else "default"
+    prompt = " ".join(sys.argv[2:]) if len(sys.argv) > 2 else "Draft a cybersecurity incident report."
+    if mode == "research":
+        result = run_deep_research(prompt)
+        print("Research Result:", result)
+    elif mode == "replay":
+        filename = sys.argv[2] if len(sys.argv) > 2 else None
+        if filename:
+            replay_trace(filename)
+        else:
+            print("Usage: python3 main.py replay <trace_filename>")
+    else:
+        result = new_task(prompt, latent_mode=True)
+        print("Final Result:\n", result)
