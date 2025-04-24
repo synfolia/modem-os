@@ -24,8 +24,8 @@ type GeneInterventionPlan struct {
 }
 
 // StartScrollSimulation begins a new trial based on scroll history
-func StartScrollSimulation(scroll Scroll) GeneInterventionPlan {
-	fmt.Println("Starting simulation for scroll:", scroll.ID)
+func StartScrollEngineSimulation(scroll Scroll) GeneInterventionPlan {
+	fmt.Println("Starting engine simulation for scroll:", scroll.ID)
 
 	if scroll.TrustScore < 0.7 {
 		fmt.Println("Scroll trust too low. Composting instead...")

@@ -13,7 +13,8 @@ def latent_execute(sap_text):
             "model": "maple-os-1:latest",
             "prompt": f"Reason in latent space about: {sap_text}",
             "stream": False
-        }
+        },
+        timeout=10
     )
 
     response_json = response.json()
@@ -31,20 +32,26 @@ def latent_execute(sap_text):
             "trust_score": 0.91,
             "genetic_markers": ["ATG16L1", "TNFSF15"]
         }
-
         try:
-            go_response = requests.post("http://localhost:8282/simulate", json=go_payload)
+            go_response = requests.post(
+                "http://localhost:8282/simulate",
+                json=go_payload,
+                timeout=10
+            )
             if go_response.ok:
                 result = go_response.json()
                 print(":", result)
 
                 # Scroll archive path
                 ts = datetime.utcnow().isoformat().replace(":", "-")
-                out_path = f"scrolls/r_and_d/maria_lab/flare_trials/flare_{ts}.brs"
+                out_path = (
+                    f"scrolls/r_and_d/maria_lab/flare_trials/"
+                    f"flare_{ts}.brs"
+                )
                 os.makedirs(os.path.dirname(out_path), exist_ok=True)
 
                 # Save scroll result
-                with open(out_path, "w") as f:
+                with open(out_path, "w", encoding="utf-8") as f:
                     json.dump({
                         "timestamp": ts,
                         "result": result,
@@ -55,8 +62,12 @@ def latent_execute(sap_text):
                 # Handle Go server error
                 go_response.raise_for_status()
                 # Log error response
-                print("MAPLE: Go server error:", go_response.status_code, go_response.text)
-        except Exception as e:
+                print(
+                    "MAPLE: Go server error:",
+                    go_response.status_code,
+                    go_response.text
+                )
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
             print("MAPLE: Failed to reach Coconut Go server:", str(e))
     else:
         print("MAPLE: No actionable scroll-to-gene patterns found.")
