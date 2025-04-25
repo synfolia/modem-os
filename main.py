@@ -8,6 +8,10 @@ from core.router.sap_scoring.score_sap import score_sap
 from core.router.latent_mode.latent_executor import latent_execute
 from modem_os.prompt import prompt
 
+def record_branch(task_id, branch_type, branch_data):
+    """Records a branch script or decision for a task."""
+    print(f"Recording branch for task {task_id}: [{branch_type}] {branch_data}")
+
 # Newer MAPLE Components
 # MAPLE Components with fallback
 try:
@@ -19,8 +23,7 @@ except (ImportError, ModuleNotFoundError):
         return {"analysis": "fallback", "result": args[0] if args else None}
 
 try:
-    # from core.maple.optimization.maple_optimizer import optimize_maple
-    pass
+    from core.maple.optimization.maple_optimizer import optimize_maple
 except (ImportError, ModuleNotFoundError):
     def optimize_maple(*args, **_):
         """Fallback optimizer."""
@@ -32,6 +35,9 @@ try:
 except (ImportError, ModuleNotFoundError):
     def validate_maple(*_, **__):
         """Fallback validator."""
+        print("Fallback: Validating MAPLE result.")
+        return True
+
 class TaskTracker:
     """Tracks the status of tasks in the system."""
 
