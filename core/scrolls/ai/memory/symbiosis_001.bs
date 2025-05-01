@@ -1,0 +1,10 @@
+{
+  "scroll_id": "symbiosis_001",
+  "attached_model": {
+    "model_name": "maple-flare-detector-v2",
+    "model_path": "modem_os/core/scrolls/ai/models/weights/symbiosis_001.onnx",
+    "trust_score": 0.92,
+    "drift_detected": false,
+    "lineage": []
+  }
+}

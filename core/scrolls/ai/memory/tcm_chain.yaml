@@ -1,0 +1,11 @@
+tcm_chain:
+  model: TemporalCausalMemory-v1
+  retained_horizon: 24w
+  latent_signals:
+    - sleep_disturbance
+    - flare_stack_latency
+    - resilience_bounceback
+  foresight_output:
+    - next_mutation_window: 7d
+    - stability_score: 0.82
+    - forecasted_trust: 0.91

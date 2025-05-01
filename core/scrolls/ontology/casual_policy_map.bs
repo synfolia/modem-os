@@ -1,0 +1,13 @@
+# Semantic policy graph
+{
+  "scroll_id": "causal_policy_map",
+  "type": "ontology_map",
+  "triggers": {
+    "flare": {
+      "causes": ["immune_spike"],
+      "mitigated_by": ["coconut_loop_001"],
+      "trust_drift": "low",
+      "resolved_by": "guardian_intervention"
+    }
+  }
+}

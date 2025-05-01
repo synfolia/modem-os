@@ -1,0 +1,6 @@
+{
+  "timestamp": "2025-04-18T21:13:57.860687",
+  "prompt": "Why do scroll-based agents coordinate better in federated systems?",
+  "steps": [],
+  "result": "[Router error: HTTPConnectionPool(host='localhost', port=8000): Max retries exceeded with url: /mcp/route (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x10181f8c0>: Failed to establish a new connection: [Errno 61] Connection refused'))]"
+}
