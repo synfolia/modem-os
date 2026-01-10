@@ -378,9 +378,10 @@ async def home():
             <label>Mode</label>
             <select id="mode-select">
                 <option value="research">Deep Research (Full context)</option>
-                <option value="task">Task Execution (SAP + MAPLE)</option>
-                <option value="simulation">Simulation (Latent Mode)</option>
+                <option value="task">Plan & Execute (SAP)</option>
+                <option value="simulation">Probe Behavior (Simulation)</option>
             </select>
+            <div id="mode-explainer" style="margin-top: 8px; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;"></div>
         </div>
 
         <div class="input-group">
@@ -412,6 +413,22 @@ async def home():
     </div>
 
     <script>
+      const MODE_DESC = {{
+        "research": "Executes a deep research session to gather information and context.",
+        "task": "Decomposes an objective into candidate strategies, scores them, selects a plan, and executes it through MAPLE.",
+        "simulation": "Runs a constrained latent execution to observe failure modes, heuristics, and emergent behavior without committing to a plan."
+      }};
+
+      function updateModeExplainer() {{
+        const sel = document.getElementById("mode-select");
+        const val = sel.value;
+        const txt = MODE_DESC[val] || "";
+        document.getElementById("mode-explainer").innerText = txt;
+      }}
+
+      document.getElementById("mode-select").addEventListener("change", updateModeExplainer);
+      updateModeExplainer();
+
       async function runJob() {{
         const mode = document.getElementById("mode-select").value;
         const prompt = document.getElementById("prompt-input").value.trim();
