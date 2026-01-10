@@ -1,6 +1,7 @@
 from core.router.sap_scoring.score_sap import score_sap
 from core.router.latent_mode.latent_executor import latent_execute
 from core.task_manager.task_tracker import TaskTracker
+import uuid
 
 def record_branch(task_id, branch_type, branch_data):
     """Records a branch script or decision for a task."""
@@ -32,7 +33,48 @@ except (ImportError, ModuleNotFoundError):
         print("Fallback: Validating MAPLE result.")
         return True
 
-import uuid
+def _render_execution_plan(scored_saps, selected_sap):
+    """Renders the execution plan artifact."""
+    print("\nExecution Plan")
+    print("──────────────")
+    print("• Candidate strategies (SAPs)")
+    print("• Scores per dimension")
+    print("• Selected plan (highlighted)")
+    print("• Execution path\n")
+
+    header = "┌──────────── Execution Plan ────────────┐"
+    width = len(header) - 2  # Internal width (40)
+    print(header)
+
+    for sap in scored_saps:
+        title = sap['title'][:10] # Truncate title
+        score = sap.get('composite_score', 0)
+
+        # Bar chart (max score roughly 70 based on 7 dims * 10)
+        bar_len = 10
+        filled = int((score / 70.0) * bar_len)
+        filled = max(0, min(filled, bar_len))
+        bar = "▓" * filled + "░" * (bar_len - filled)
+
+        selected_text = "  ← Selected" if sap == selected_sap else ""
+
+        # Construct content: "SAP 1  ▓▓▓▓▓░  63"
+        # 6 chars for title, 1 space, 10 chars bar, 1 space, 3 chars score. Total 21.
+        content = f"{title:<6} {bar} {score:<3}{selected_text}"
+
+        # Pad right to fill the box
+        # We start printing at "│ " (2 chars)
+        # So we need to print `content` then padding then "│"
+        # Total line length should be `len(header)`
+        # content length varies due to selected_text
+
+        padding_needed = width - len(content) - 2 # -2 for leading " " and trailing " "
+        if padding_needed < 0:
+             padding_needed = 0 # Should not happen with short titles
+
+        print(f"│ {content}{' ' * padding_needed} │")
+
+    print("└" + "─" * width + "┘\n")
 
 def new_task(_prompt, latent_mode=False):
     """Processes a new task."""
@@ -44,13 +86,15 @@ def new_task(_prompt, latent_mode=False):
     saps = [
         {
             "title": "SAP 1",
-            "description": "Description of SAP 1",
-            "composite_score": 85,
+            "description": "Brute force approach with high redundancy",
         },
         {
             "title": "SAP 2",
-            "description": "Description of SAP 2",
-            "composite_score": 90,
+            "description": "Optimized heuristic search",
+        },
+        {
+            "title": "SAP 3",
+            "description": "Experimental latent traversal",
         },
     ]
 
@@ -65,6 +109,9 @@ def new_task(_prompt, latent_mode=False):
 
     # Pick best SAP
     best_sap = max(scored_saps, key=lambda x: x["composite_score"])
+
+    # Render Execution Plan
+    _render_execution_plan(scored_saps, best_sap)
 
     # Record BranchScript
     record_branch(task_id, "SAP", best_sap)
