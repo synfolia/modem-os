@@ -1,38 +1,56 @@
 import json
 import os
+from typing import List
+
+
+DEFAULT_TRACE_DIRS: List[str] = [
+    os.path.join("core", "research", "trace_store"),                 # current default
+    os.path.join("scrolls", "r_and_d", "maria_lab", "flare_trials"), # legacy
+]
+
+
+def _resolve_trace_path(filename: str) -> str:
+    """
+    Resolve a trace path from either:
+      - an explicit path provided by user, or
+      - a bare filename searched in known trace directories.
+    """
+    # If user passed a path, allow it but still prevent traversal via weird basenames.
+    # We treat absolute paths and explicit relative paths (containing /) as "explicit".
+    has_path = (os.path.isabs(filename) or (os.sep in filename) or ("/" in filename))
+
+    if has_path:
+        candidate = os.path.normpath(filename)
+        if os.path.exists(candidate):
+            return candidate
+        # If explicit path was given and doesn't exist, fall through to try basename in defaults.
+
+    # Security: sanitize to prevent path traversal when searching in default dirs
+    base = os.path.basename(filename)
+
+    tried = []
+    for d in DEFAULT_TRACE_DIRS:
+        candidate = os.path.join(d, base)
+        tried.append(candidate)
+        if os.path.exists(candidate):
+            return candidate
+
+    tried_str = "\n".join(f"  - {p}" for p in tried)
+    raise FileNotFoundError(
+        f"Trace file not found: {base}\nSearched:\n{tried_str}"
+    )
 
 
 def replay_trace(filename: str):
     """
     Replays a research trace from a specified JSON file.
-
-    This function loads a trace file from a predefined directory structure,
-    parses its contents, and prints the details of the trace, including the
-    prompt, timestamp, steps, and final result.
-
-    Args:
-        filename (str): The name of the trace file to replay.
-
-    Raises:
-        FileNotFoundError: If the specified trace file does not exist.
-
-    Example:
-        replay_trace("example_trace.json")
     """
-    # Security: Sanitize filename to prevent path traversal
-    filename = os.path.basename(filename)
-
-    path = os.path.join(
-        "scrolls", "r_and_d", "maria_lab", "flare_trials", filename
-    )
-
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"Trace file not found: {path}")
+    path = _resolve_trace_path(filename)
 
     with open(path, "r", encoding="utf-8") as f:
         trace = json.load(f)
-        print(f"Loaded trace from {path}")
 
+    print(f"Loaded trace from {path}")
     print("\n--- Replaying Research Trace ---")
     print(f"Prompt: {trace.get('prompt')}")
     print(f"Timestamp: {trace.get('timestamp')}\n")
