@@ -19,6 +19,9 @@ def replay_trace(filename: str):
     Example:
         replay_trace("example_trace.json")
     """
+    # Security: Sanitize filename to prevent path traversal
+    filename = os.path.basename(filename)
+
     path = os.path.join(
         "scrolls", "r_and_d", "maria_lab", "flare_trials", filename
     )
