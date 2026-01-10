@@ -5,6 +5,8 @@ import json
 import os
 import time
 import uuid
+import io
+import contextlib
 from dataclasses import dataclass, asdict
 from typing import Any, Dict, Optional, List
 from concurrent.futures import ThreadPoolExecutor
@@ -12,10 +14,13 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from core.task_manager.runner import new_task
+from core.router.latent_mode.latent_executor import latent_execute
+
 # ---- Config ----
 TRACE_DIR = os.path.join("core", "research", "trace_store")
 MAX_RECENT_TRACES = 25
-EXECUTOR = ThreadPoolExecutor(max_workers=1)  # keep simple: 1 job at a time
+EXECUTOR = ThreadPoolExecutor(max_workers=1)  # keep simple: 1 job at a time (safe for stdout capture)
 
 app = FastAPI()
 
@@ -42,6 +47,21 @@ def _run_research(prompt: str) -> str:
             "Could not import research runner. "
             "Update _run_research() to call your project’s research entrypoint."
         ) from e
+
+
+def _run_task_wrapper(prompt: str) -> str:
+    f = io.StringIO()
+    with contextlib.redirect_stdout(f):
+        res = new_task(prompt, latent_mode=True)
+        print("\nFinal Return:", res)
+    return f.getvalue()
+
+def _run_simulate_wrapper(prompt: str) -> str:
+    f = io.StringIO()
+    with contextlib.redirect_stdout(f):
+        res = latent_execute(prompt)
+        print("\nLatent Execution Result:", res)
+    return f.getvalue()
 
 
 # ---- Jobs ----
@@ -88,7 +108,14 @@ def _run_job(job_id: str) -> None:
     # Best-effort trace detection: compare directory before/after.
     before = set(_list_traces())
     try:
-        result = _run_research(job.prompt or "")
+        result = ""
+        if job.kind == "research":
+            result = _run_research(job.prompt or "")
+        elif job.kind == "task":
+            result = _run_task_wrapper(job.prompt or "")
+        elif job.kind == "simulation":
+            result = _run_simulate_wrapper(job.prompt or "")
+
         job.result = result
         job.status = "done"
     except Exception as e:
@@ -97,6 +124,7 @@ def _run_job(job_id: str) -> None:
     finally:
         job.finished_at = time.time()
         after = set(_list_traces())
+        # Only research produces traces usually, but we check anyway
         job.trace_file = _guess_new_trace(before, after)
 
 
@@ -111,7 +139,7 @@ def _page(title: str, body: str) -> str:
   <style>
     body {{ font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; }}
     .card {{ max-width: 980px; border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin-bottom: 16px; }}
-    textarea {{ width: 100%; min-height: 120px; padding: 10px; }}
+    textarea {{ width: 100%; min-height: 80px; padding: 10px; }}
     button {{ padding: 10px 14px; border-radius: 10px; border: 1px solid #ccc; cursor: pointer; }}
     code, pre {{ background: #f6f6f6; padding: 10px; border-radius: 10px; overflow-x: auto; }}
     .muted {{ color: #555; }}
@@ -119,6 +147,7 @@ def _page(title: str, body: str) -> str:
     ul {{ padding-left: 20px; }}
     .row {{ display: flex; gap: 12px; flex-wrap: wrap; }}
     .row > * {{ flex: 1; min-width: 280px; }}
+    h2 {{ margin-top: 0; }}
   </style>
 </head>
 <body>
@@ -150,53 +179,81 @@ async def home():
     <h1>MoDEM Dashboard</h1>
 
     <div class="row">
+      <!-- Run Research -->
       <div class="card">
         <h2>Run Research</h2>
-        <p class="muted">Starts a job and saves a trace (if trace saving is enabled in your research runner).</p>
-        <textarea id="prompt" placeholder="Enter a research prompt..."></textarea>
+        <p class="muted">Starts a deep research session.</p>
+        <textarea id="prompt_research" placeholder="Enter a research prompt..."></textarea>
         <div style="margin-top: 10px;">
-          <button onclick="startResearch()">Run</button>
+          <button onclick="startJob('research', 'prompt_research', 'job_research')">Run Research</button>
         </div>
-        <div id="job" style="margin-top: 12px;"></div>
+        <div id="job_research" style="margin-top: 12px;"></div>
       </div>
 
+      <!-- Run Task -->
+      <div class="card">
+        <h2>Run Task</h2>
+        <p class="muted">Executes a new task (SAP + MAPLE).</p>
+        <textarea id="prompt_task" placeholder="Enter task description..."></textarea>
+        <div style="margin-top: 10px;">
+          <button onclick="startJob('task', 'prompt_task', 'job_task')">Run Task</button>
+        </div>
+        <div id="job_task" style="margin-top: 12px;"></div>
+      </div>
+
+       <!-- Run Simulation -->
+      <div class="card">
+        <h2>Simulate</h2>
+        <p class="muted">Run latent execution (simulation).</p>
+        <textarea id="prompt_sim" placeholder="Enter simulation query..."></textarea>
+        <div style="margin-top: 10px;">
+          <button onclick="startJob('simulation', 'prompt_sim', 'job_sim')">Simulate</button>
+        </div>
+        <div id="job_sim" style="margin-top: 12px;"></div>
+      </div>
+    </div>
+
+    <div class="row">
       <div class="card">
         <h2>Recent Traces</h2>
         <ul>{traces_html}</ul>
         <p class="muted"><a href="/api/traces">API: /api/traces</a></p>
       </div>
-    </div>
 
-    <div class="card">
-      <h2>Status</h2>
-      <ul>
-        <li><a href="/health">Health Check</a></li>
-      </ul>
+      <div class="card">
+        <h2>Status</h2>
+        <ul>
+          <li><a href="/health">Health Check</a></li>
+        </ul>
+      </div>
     </div>
 
     <script>
-      async function startResearch() {{
-        const prompt = document.getElementById("prompt").value.trim();
+      async function startJob(kind, inputId, outputId) {{
+        const prompt = document.getElementById(inputId).value.trim();
         if (!prompt) {{
           alert("Enter a prompt first.");
           return;
         }}
-        document.getElementById("job").innerHTML = "<p>Starting...</p>";
-        const resp = await fetch("/api/research", {{
+        const el = document.getElementById(outputId);
+        el.innerHTML = "<p>Starting " + kind + "...</p>";
+
+        const endpoint = "/api/" + kind;
+        const resp = await fetch(endpoint, {{
           method: "POST",
           headers: {{ "Content-Type": "application/json" }},
           body: JSON.stringify({{ prompt }})
         }});
         const data = await resp.json();
         if (!resp.ok) {{
-          document.getElementById("job").innerHTML = "<pre>" + (data.detail || JSON.stringify(data)) + "</pre>";
+          el.innerHTML = "<pre>" + (data.detail || JSON.stringify(data)) + "</pre>";
           return;
         }}
-        pollJob(data.job_id);
+        pollJob(data.job_id, outputId);
       }}
 
-      async function pollJob(jobId) {{
-        const el = document.getElementById("job");
+      async function pollJob(jobId, outputId) {{
+        const el = document.getElementById(outputId);
         el.innerHTML = "<p>Job " + jobId + " running...</p>";
         while (true) {{
           const resp = await fetch("/api/jobs/" + jobId);
@@ -228,6 +285,17 @@ async def health_check():
 
 @app.post("/api/research")
 async def api_research(payload: Dict[str, Any]):
+    return _create_job("research", payload)
+
+@app.post("/api/task")
+async def api_task(payload: Dict[str, Any]):
+    return _create_job("task", payload)
+
+@app.post("/api/simulation")
+async def api_simulation(payload: Dict[str, Any]):
+    return _create_job("simulation", payload)
+
+def _create_job(kind: str, payload: Dict[str, Any]):
     prompt = (payload.get("prompt") or "").strip()
     if not prompt:
         raise HTTPException(status_code=400, detail="Missing prompt")
@@ -235,7 +303,7 @@ async def api_research(payload: Dict[str, Any]):
     job_id = uuid.uuid4().hex
     job = Job(
         id=job_id,
-        kind="research",
+        kind=kind,
         status="queued",
         created_at=time.time(),
         prompt=prompt,
