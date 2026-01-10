@@ -300,6 +300,42 @@ def _page(title: str, body: str) -> str:
     details summary:hover {{ color: var(--primary); }}
     details[open] summary {{ margin-bottom: 12px; }}
 
+    /* Simulation Panel */
+    .sim-panel {{
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-top: 16px;
+    }}
+    .sim-row {{ margin-bottom: 16px; }}
+    .sim-row:last-child {{ margin-bottom: 0; }}
+    .sim-label {{
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }}
+    .sim-value {{
+      font-size: 0.95rem;
+      color: var(--text);
+      line-height: 1.6;
+    }}
+    .sim-signals {{
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.85rem;
+        background: white;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        max-height: 200px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        color: #334155;
+    }}
+
   </style>
 </head>
 <body>
@@ -431,6 +467,80 @@ async def home():
         "simulation": 'E.g. "What happens if the system is given ambiguous constraints?" or "Does the planner collapse under conflicting goals?"'
       }};
 
+      function renderSimulationOutput(job) {{
+        const result = job.result || "";
+        const prompt = job.prompt || "";
+
+        // 1. Analyze Heuristics & Outcome
+        let outcome = '<span class="badge score-low">Unknown</span>';
+        let heuristics = [];
+        let interpretation = "System behavior could not be determined from logs.";
+
+        const hasFlare = result.includes("Flare scroll detected") || result.includes("flare");
+        const hasGenetic = result.includes("ATG16L1");
+        const hasTrigger = result.includes("Triggering Coconut mutation loop");
+        const hasNoMatch = result.includes("No actionable scroll-to-gene patterns") || result.includes("No actionable");
+        const hasError = result.includes("Failed to reach Coconut") || result.includes("Go server error");
+
+        if (hasGenetic) heuristics.push("Genetic Signal (ATG16L1)");
+        if (hasFlare) heuristics.push("Flare Pattern Match");
+
+        if (hasTrigger) {{
+            outcome = '<span class="badge score-high">Executed</span>';
+            interpretation = "The system detected a high-confidence pattern and triggered the downstream simulation.";
+        }} else if (hasNoMatch) {{
+            outcome = '<span class="badge score-med">Halted</span>';
+            if (heuristics.length === 0) heuristics.push("Negative Pattern Match");
+            interpretation = "Latent reasoning did not find sufficient evidence to proceed with simulation.";
+        }} else if (hasError) {{
+            outcome = '<span class="badge score-low">Fallback</span>';
+            heuristics.push("Service Error");
+            interpretation = "The system attempted execution but the simulation backend was unreachable.";
+        }} else if (result.trim() !== "") {{
+             outcome = '<span class="badge score-med">Completed</span>';
+             interpretation = "The simulation completed without triggering specific downstream actions.";
+        }}
+
+        // 2. Filter Signals
+        const lines = result.split("\\n");
+        const signals = lines.join("\\n");
+
+        const heuristicsHtml = heuristics.length > 0
+            ? heuristics.map(h => `<span class="badge score-med" style="margin-right:6px;">${{h}}</span>`).join("")
+            : '<span style="color:var(--text-muted); font-style:italic;">None</span>';
+
+        return `
+        <div class="sim-panel">
+            <h3 style="margin-top:0; border-bottom:1px solid #e2e8f0; padding-bottom:12px; margin-bottom:16px; font-size:1rem;">Simulation Observations</h3>
+
+            <div class="sim-row">
+                <div class="sim-label">Hypothesis</div>
+                <div class="sim-value" style="font-style: italic;">"${{prompt}}"</div>
+            </div>
+
+            <div class="sim-row">
+                <div class="sim-label">Observed Signals</div>
+                <div class="sim-value"><pre class="sim-signals">${{signals || "No signals captured."}}</pre></div>
+            </div>
+
+             <div class="sim-row">
+                <div class="sim-label">Heuristics Triggered</div>
+                <div class="sim-value">${{heuristicsHtml}}</div>
+            </div>
+
+             <div class="sim-row">
+                <div class="sim-label">Outcome</div>
+                <div class="sim-value">${{outcome}}</div>
+            </div>
+
+             <div class="sim-row">
+                <div class="sim-label">Interpretation</div>
+                <div class="sim-value">${{interpretation}}</div>
+            </div>
+        </div>
+        `;
+      }}
+
       function updateModeExplainer() {{
         const sel = document.getElementById("mode-select");
         const val = sel.value;
@@ -507,7 +617,13 @@ async def home():
                 if (job.trace_file) {{
                     html += '<div style="margin-bottom: 12px;"><a href="/trace/' + job.trace_file + '" class="badge score-high" style="font-size: 0.9rem; padding: 8px 16px; text-decoration: none;">View Full Trace Artifact &rarr;</a></div>';
                 }}
-                html += '<pre>' + (job.result || "No output captured.") + '</pre>';
+
+                if (job.kind === "simulation") {{
+                    html += renderSimulationOutput(job);
+                }} else {{
+                    html += '<pre>' + (job.result || "No output captured.") + '</pre>';
+                }}
+
                 resPreview.innerHTML = html;
                 break;
               }}
