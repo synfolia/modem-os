@@ -385,7 +385,7 @@ async def home():
         </div>
 
         <div class="input-group">
-            <label>Prompt / Objective</label>
+            <label id="prompt-label">Prompt / Objective</label>
             <textarea id="prompt-input" placeholder="Describe your research goal or task..."></textarea>
         </div>
 
@@ -416,14 +416,38 @@ async def home():
       const MODE_DESC = {{
         "research": "Executes a deep research session to gather information and context.",
         "task": "Decomposes an objective into candidate strategies, scores them, selects a plan, and executes it through MAPLE.",
-        "simulation": "Runs a constrained latent execution to observe failure modes, heuristics, and emergent behavior without committing to a plan."
+        "simulation": "Runs a hypothesis-driven probe to observe failure modes, heuristics, and emergent behavior. Useful for safety analysis and experimentation."
+      }};
+
+      const MODE_LABELS = {{
+        "research": "Prompt / Objective",
+        "task": "Prompt / Objective",
+        "simulation": "Hypothesis or Constraint to Probe"
+      }};
+
+      const MODE_PLACEHOLDERS = {{
+        "research": "Describe your research goal or task...",
+        "task": "Describe your research goal or task...",
+        "simulation": 'E.g. "What happens if the system is given ambiguous constraints?" or "Does the planner collapse under conflicting goals?"'
       }};
 
       function updateModeExplainer() {{
         const sel = document.getElementById("mode-select");
         const val = sel.value;
+
+        // Update description
         const txt = MODE_DESC[val] || "";
         document.getElementById("mode-explainer").innerText = txt;
+
+        // Update label
+        const label = MODE_LABELS[val] || "Prompt / Objective";
+        const labelEl = document.getElementById("prompt-label");
+        if (labelEl) labelEl.innerText = label;
+
+        // Update placeholder
+        const ph = MODE_PLACEHOLDERS[val] || "Describe your research goal or task...";
+        const inputEl = document.getElementById("prompt-input");
+        if (inputEl) inputEl.placeholder = ph;
       }}
 
       document.getElementById("mode-select").addEventListener("change", updateModeExplainer);
