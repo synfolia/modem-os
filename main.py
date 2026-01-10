@@ -6,7 +6,7 @@ from core.research.replay_engine import replay_trace
 from core.research.research_session import run_deep_research
 from core.router.sap_scoring.score_sap import score_sap
 from core.router.latent_mode.latent_executor import latent_execute
-from modem_os.prompt import prompt
+from prompt import prompt
 
 def record_branch(task_id, branch_type, branch_data):
     """Records a branch script or decision for a task."""
@@ -137,23 +137,3 @@ if __name__ == "__main__":
     else:
         final_result = new_task(prompt, latent_mode=True)
         print("Final Result:\n", final_result)
-        # Example usage
-        # final_result = new_task(
-        #     "Draft a cybersecurity incident report.",
-        #     latent_mode=True
-        # )
-        # print("Final Result:\n", final_result)
-    import sys
-    mode = sys.argv[1] if len(sys.argv) > 1 else "default"
-    if mode == "research":
-        result = run_deep_research(prompt)
-        print("Research Result:", result)
-    elif mode == "replay":
-        filename = sys.argv[2] if len(sys.argv) > 2 else None
-        if filename:
-            replay_trace(filename)
-        else:
-            print("Usage: python3 main.py replay <trace_filename>")
-    else:
-        result = new_task(prompt, latent_mode=True)
-        print("Final Result:\n", result)

@@ -5,6 +5,28 @@ from datetime import datetime
 
 TRACE_DIR = "core/research/trace_store"
 
+def run_local_research_ollama(prompt: str):
+    """
+    Runs research locally using Ollama with deepseek-r1.
+    """
+    print("[*] Running local research via Ollama (deepseek-r1)...")
+    try:
+        response = requests.post(
+            "http://localhost:11434/api/generate",
+            json={
+                "model": "deepseek-r1",
+                "prompt": prompt,
+                "stream": False
+            }
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data.get("response", "[No response from Ollama]")
+    except requests.exceptions.ConnectionError:
+        return "[Error: Ollama (localhost:11434) is unreachable. Please ensure it is running.]"
+    except Exception as e:
+        return f"[Error running local research: {str(e)}]"
+
 def run_deep_research(prompt: str):
     trace = {
         "timestamp": datetime.utcnow().isoformat(),
@@ -13,19 +35,48 @@ def run_deep_research(prompt: str):
         "result": None
     }
 
-    try:
-        response = requests.post(
-            "http://localhost:8000/mcp/route",
-            json={"prompt": prompt}
-        )
-        response.raise_for_status()
-        data = response.json()
+    router_url = os.environ.get("MODEM_ROUTER_URL")
 
-        trace["steps"] = data.get("steps", [])
-        trace["result"] = data.get("result", "[No result returned]")
+    # Logic:
+    # 1. If MODEM_ROUTER_URL is set, try to use it.
+    # 2. If it fails (connection error), fallback to local.
+    # 3. If MODEM_ROUTER_URL is not set, use local directly.
 
-    except Exception as e:
-        trace["result"] = f"[Router error: {str(e)}]"
+    used_router = False
+
+    if router_url:
+        try:
+            print(f"[*] Attempting to route research via {router_url}...")
+            response = requests.post(
+                router_url,
+                json={"prompt": prompt}
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            trace["steps"] = data.get("steps", [])
+            trace["result"] = data.get("result", "[No result returned]")
+            used_router = True
+
+        except requests.exceptions.ConnectionError:
+            print(f"[!] Router at {router_url} is unreachable. Falling back to local Ollama.")
+            # Fallback will happen below
+        except Exception as e:
+            trace["result"] = f"[Router error: {str(e)}]"
+            # If it's a non-connection error (e.g. 500 or 400), we might still want to fallback or just fail.
+            # The prompt says: "If set but router unreachable, print a friendly message and fallback to local."
+            # "Unreachable" usually implies connection error.
+            # For other errors, I'll stick to current behavior of logging error, unless user implied otherwise.
+            # But let's assume we proceed to save trace and return.
+            pass
+
+    if not used_router:
+        # Check if we already have a result (from non-connection error above)
+        if trace["result"] is None:
+            # Run local research
+            result = run_local_research_ollama(prompt)
+            trace["result"] = result
+            trace["steps"].append({"action": "local_inference", "model": "deepseek-r1", "status": "completed"})
 
     save_trace(trace)
     return trace["result"]
