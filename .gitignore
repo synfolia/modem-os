@@ -21,3 +21,11 @@ node_modules/
 # System
 *.swp
 *.swo
+# local artifacts
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# generated traces
+core/research/trace_store/
