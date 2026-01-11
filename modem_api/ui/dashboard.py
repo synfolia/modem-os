@@ -467,6 +467,16 @@ async def home():
         "simulation": 'E.g. "What happens if the system is given ambiguous constraints?" or "Does the planner collapse under conflicting goals?"'
       }};
 
+      function escapeHtml(text) {{
+        if (!text) return text;
+        return text
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }}
+
       function renderSimulationOutput(job) {{
         const result = job.result || "";
         const prompt = job.prompt || "";
@@ -540,7 +550,7 @@ async def home():
         const logsHtml = `
         <details style="margin-top: 16px;">
             <summary style="font-size: 0.85rem;">Raw Execution Log</summary>
-            <pre class="sim-signals" style="margin-top: 8px;">${{result || "No logs captured."}}</pre>
+            <pre class="sim-signals" style="margin-top: 8px;">${{escapeHtml(result) || "No logs captured."}}</pre>
         </details>
         `;
 
@@ -550,7 +560,7 @@ async def home():
 
             <div class="sim-row" style="margin-bottom: 20px;">
                 <div class="sim-label">Hypothesis</div>
-                <div class="sim-value" style="font-style: italic;">"${{prompt}}"</div>
+                <div class="sim-value" style="font-style: italic;">"${{escapeHtml(prompt)}}"</div>
             </div>
 
             <ul style="margin: 0; padding-left: 20px; font-size: 0.95rem; color: var(--text); margin-bottom: 24px;">
@@ -647,7 +657,7 @@ async def home():
                 if (job.kind === "simulation") {{
                     html += renderSimulationOutput(job);
                 }} else {{
-                    html += '<pre>' + (job.result || "No output captured.") + '</pre>';
+                    html += '<pre>' + escapeHtml(job.result || "No output captured.") + '</pre>';
                 }}
 
                 resPreview.innerHTML = html;
