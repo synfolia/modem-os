@@ -1,50 +1,49 @@
-package main
+package scroll_engine
 
 import (
 	"testing"
-	"time"
+
+	"Maple-OS/modem_os/core/shared/types"
 )
 
-func TestStartScrollSimulation(t *testing.T) {
-	// Case 1: Low trust, no markers
-	lowTrustScroll := Scroll{
+func TestStartScrollSimulation_LowTrustNoMarkers(t *testing.T) {
+	scroll := types.Scroll{
 		ID:             "test_low_trust",
-		Trigger:        "memory",
-		Timestamp:      time.Now(),
-		TrustScore:     0.2,
+		TrustScore:     0.12,
+		IsFlareEvent:   false,
 		GeneticMarkers: []string{},
 	}
 
-	result1 := StartScrollSimulation(lowTrustScroll)
+	out := StartScrollSimulation(scroll)
 
-	if result1.TrustAligned != false {
-		t.Errorf("Expected TrustAligned to be false, got %v", result1.TrustAligned)
+	if out.TrustAligned {
+		t.Fatalf("expected TrustAligned=false for low trust")
 	}
-	if result1.RequiredRecalibrate != true {
-		t.Errorf("Expected RequiredRecalibrate to be true, got %v", result1.RequiredRecalibrate)
+	if !out.RequiredRecalibrate {
+		t.Fatalf("expected RequiredRecalibrate=true when low trust or missing markers")
 	}
-	if result1.MutationLoopID != "discovery_loop" {
-		t.Errorf("Expected MutationLoopID to be discovery_loop, got %s", result1.MutationLoopID)
+	if out.MutationLoopID != "discovery_loop" {
+		t.Fatalf("expected discovery_loop, got %q", out.MutationLoopID)
 	}
+}
 
-	// Case 2: High trust + flare + markers
-	highTrustScroll := Scroll{
+func TestStartScrollSimulation_FlareMarkersHighTrust(t *testing.T) {
+	scroll := types.Scroll{
 		ID:             "test_high_trust",
-		Trigger:        "flare",
-		Timestamp:      time.Now(),
-		TrustScore:     0.8,
-		GeneticMarkers: []string{"ATG16L1"},
+		TrustScore:     0.92,
+		IsFlareEvent:   true,
+		GeneticMarkers: []string{"g1", "g2"},
 	}
 
-	result2 := StartScrollSimulation(highTrustScroll)
+	out := StartScrollSimulation(scroll)
 
-	if result2.TrustAligned != true {
-		t.Errorf("Expected TrustAligned to be true, got %v", result2.TrustAligned)
+	if !out.TrustAligned {
+		t.Fatalf("expected TrustAligned=true for high trust")
 	}
-	if result2.RequiredRecalibrate != false {
-		t.Errorf("Expected RequiredRecalibrate to be false, got %v", result2.RequiredRecalibrate)
+	if out.RequiredRecalibrate {
+		t.Fatalf("expected RequiredRecalibrate=false for high trust + markers")
 	}
-	if result2.MutationLoopID != "flare_mutation_loop" {
-		t.Errorf("Expected MutationLoopID to be flare_mutation_loop, got %s", result2.MutationLoopID)
+	if out.MutationLoopID != "flare_mutation_loop" {
+		t.Fatalf("expected flare_mutation_loop, got %q", out.MutationLoopID)
 	}
 }

@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 package main
+=======
+package scroll_engine
+>>>>>>> 1cfbc10 (scroll_engine: add health/schema, conditional simulation, and tests)
 
 import (
 	"fmt"
