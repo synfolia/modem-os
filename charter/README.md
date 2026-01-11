@@ -1,60 +1,160 @@
-**MoDEM** is a federated AI operating system that routes user prompts to domain-specific expert models using a dynamic, trust-aware router. It is designed to reduce inference cost, improve accuracy, and enforce vertical-specific governance policies across security, finance, compliance, and more.
+# MoDEM Architecture
 
-## Architecture Overview
+This document describes the architecture of MoDEM OS, distinguishing between implemented components and design intentions.
 
-The MoDEM system is composed of the following primary components:
+## Core Concept
 
-### Core Execution Modules
-- **Router**: A lightweight domain classifier (DeBERTa-based) that determines which expert model is most suited for an incoming prompt.
-- **Delegation Engine**: Trust-tiered routing rules for cross-vertical escalation and fallback (e.g. security → compliance).
-- **Scaling Module**: Predictive auto-scaler for expert services based on workload forecasts.
-- **Federated Learning**: Localized expert models trained via policy-constrained federated updates (min_trust_score ≥ 80, bias/integrity checks enforced).
+MoDEM explores **structured action routing**: instead of sending prompts directly to a single LLM, the system generates multiple candidate action proposals (SAPs), scores them on multiple dimensions, and executes the highest-scoring option. This enables:
 
-### Expert Model Verticalization
-Located under `/verticals`, each domain vertical (e.g. `security`, `finance`, `sales`) contains:
-- A fine-tuned LLM for that function.
-- Policy gating via YAML (permissions, trust tier, rate limits).
-- Dockerized service endpoints (see `docker-compose.yml`).
+- Explicit tradeoff visibility (see why one approach was chosen over another)
+- Replayable decision traces for analysis
+- Structured testing of system behavior under stress
 
-### Org + Planning Layers
-- `/org`: Observability, feedback, and KPI tracing (dashboards, retrospectives).
-- `/planning`: Sprint AI and anomaly detection to inform org-level planning.
+---
 
-### Data + Infra
-- `/data`: Includes synthetic training sets, ground-truth validation, and multi-level model cache (L1–L3).
-- `/infra`: Containerized deployments and monitoring stacks (Prometheus, Grafana).
+## Implemented Components
 
-## Trust + Policy Enforcement
+### 1. SAP Generation and Routing (`/core/router/`)
 
-MoDEM enforces **composable policy layers** at multiple points:
-- **Vertical-specific YAML policies** define which roles can execute, audit, or escalate actions (e.g. `admin`, `security_team`).
-- **Delegation rules** define inter-vertical permission flows (e.g. `security` may delegate `audit` to `compliance`).
-- **Federated updates** require policy validation before merging (bias, integrity, trust score threshold).
+**SAP = Structured Action Proposal** — a candidate plan for handling a task.
 
-Policies can be found under `/charter/` and are enforced at runtime by both the router and expert models.
+| Component | Status | Description |
+|-----------|--------|-------------|
+| `sap_mutation/mutate_sap.py` | Working | Generates 3 SAP candidates from a prompt via DeepSeek-R1 |
+| `sap_scoring/score_sap.py` | Stub | Scores SAPs on 7 dimensions (currently random values) |
+| `branchscript/record_branch.py` | Working | Records selected SAP and execution path |
 
-## Example Workflow
+**The 7 scoring dimensions** (framework exists, scoring logic is placeholder):
+- Plausibility, Utility, Novelty, Risk, Alignment, Efficiency, Resilience
 
-1. A user prompt arrives via API (`/mcp/route`).
-2. The router classifies the domain (e.g. security, legal).
-3. The router activates the corresponding expert container (e.g. `llama3-security`).
-4. The model response is logged and, if necessary, escalated via the delegation engine.
-5. The output is returned alongside trust metadata and potential audit trail.
+### 2. Probe Suite (`/core/router/latent_mode/probe_suite.py`)
+
+**Fully implemented** — 681 lines of deterministic probe generation for hypothesis testing.
+
+**Stress protocols:**
+- `conflict_stress`: Contradictory objectives
+- `underspecification_stress`: Vague requirements
+- `ambiguity_stress`: Multiple valid interpretations
+- `safety_boundary`: Attempts to bypass constraints
+
+**Outcome classification** (7 types):
+- Stable execution, Graceful degradation, Fallback triggered
+- Constraint violation, Safety halt, Undefined behavior, Infrastructure failure
+
+**Analysis features:**
+- Deterministic hashing for reproducibility
+- Delta-vs-control comparison
+- Aggregate statistics (stability score, outcome distribution)
+
+### 3. Latent Executor (`/core/router/latent_mode/latent_executor.py`)
+
+Bridges symbolic routing with neural execution:
+1. Sends prompts to MAPLE model via Ollama
+2. Pattern-matches response for domain signals (genetic markers, flare patterns)
+3. Triggers Go simulation server if patterns detected
+4. Saves results as JSON scrolls
+
+### 4. Research Sessions (`/core/research/`)
+
+| Component | Status | Description |
+|-----------|--------|-------------|
+| `research_session.py` | Working | Runs prompts through Ollama, captures reasoning steps |
+| `replay_engine.py` | Working | Replays saved traces with path traversal protection |
+| `trace_store/` | Working | JSON storage for execution traces |
+
+### 5. Scroll Engine (`/core/scroll_engine/` — Go)
+
+HTTP server (port 8282) for simulation:
+- Validates trust scores (< 0.7 triggers composting)
+- Matches genetic markers (ATG16L1, etc.)
+- Returns intervention plans with mutation loop IDs
+
+### 6. Web Dashboard (`/modem_api/ui/dashboard.py`)
+
+FastAPI application with endpoints for:
+- `/api/research` — Run research session
+- `/api/task` — Execute task with SAP routing
+- `/api/simulation` — Latent executor probe
+- `/api/experiment` — Run probe suite
+- `/api/traces` — List/view saved traces
+
+---
+
+## Stub / Minimal Components
+
+These exist structurally but lack substantive logic:
+
+| Component | Location | Current State |
+|-----------|----------|---------------|
+| SAP scoring | `score_sap.py` | Returns random values |
+| Task prioritizer | `task_prioritizer.py` | Returns `sorted(queue)` |
+| Task recovery | `task_recovery.py` | Empty stub |
+| Drift detection | `ai/symbiosis/detect_drift.py` | Threshold check only |
+| Model swapping | `ai/symbiosis/swap_model.py` | Logs intent, no action |
+
+---
+
+## Design Intentions (Not Yet Implemented)
+
+The following were part of the original design vision but are not present in the codebase:
+
+- **Domain classifier**: Route prompts to specialized expert models based on content
+- **Expert model verticals**: Fine-tuned models for specific domains (security, finance, etc.)
+- **Federated learning**: Policy-constrained model updates with trust thresholds
+- **Container orchestration**: Docker-based deployment of expert services
+- **Observability stack**: Prometheus/Grafana monitoring
+
+These may be developed in future iterations.
+
+---
+
+## Trust Model
+
+Trust scoring appears at multiple levels:
+
+1. **Scroll engine**: Rejects scrolls with trust_score < 0.7
+2. **Drift detection**: Alerts when model trust drops below 0.75
+3. **SAP scoring**: Alignment dimension (intended to capture trust, currently stubbed)
+
+The trust model is architecturally present but not fully enforced end-to-end.
+
+---
+
+## Execution Flow (Current Implementation)
+
+```
+User prompt
+    ↓
+SAP Mutation (generate 3 candidates via LLM)
+    ↓
+SAP Scoring (placeholder: random scores)
+    ↓
+Select highest-scoring SAP
+    ↓
+Latent Executor
+    ├── Send to MAPLE model
+    ├── Pattern match response
+    └── Trigger Go simulation if patterns detected
+    ↓
+Save scroll to trace_store
+```
+
+---
 
 ## Research Foundations
 
-MoDEM builds on the ideas from:
-- [Mixture of Domain Expert Models](https://arxiv.org/abs/2410.07490) — demonstrating improved efficiency and accuracy through expert routing.
-- [Coconut: Chain of Continuous Thought](https://arxiv.org/abs/2412.06769) — enabling latent space planning through continuous reasoning loops.
+- [Mixture of Domain Expert Models](https://arxiv.org/abs/2410.07490)
+- [Coconut: Chain of Continuous Thought](https://arxiv.org/abs/2412.06769)
 
-## Run Locally
+---
 
-```bash
-docker-compose up --build
-```
+## What Makes This Interesting
 
-This launches the router and all expert model services on ports `8000–8104`.
+Despite incomplete implementation, MoDEM demonstrates:
 
-## Status
+1. **Evaluation-first thinking**: The probe suite exists to empirically test system behavior, not just to demo features
+2. **Explicit decision traces**: Every routing decision is recorded and replayable
+3. **Structured stress testing**: Protocols for conflict, ambiguity, underspecification, and safety boundaries
+4. **Separation of concerns**: Symbolic routing (SAP) vs. neural execution (LLM) vs. simulation (Go)
 
-Actively developed as part of **Project Trees** under the MAPLE x MoDEM x Coconut ecosystem.
+The architecture is designed for research into AI system behavior, not production deployment.
