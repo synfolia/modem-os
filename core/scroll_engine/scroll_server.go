@@ -1,45 +1,67 @@
 package scroll_engine
 
 import (
-	"fmt"
+	"encoding/json"
+	"log"
+	"net/http"
 
 	"Maple-OS/modem_os/core/shared/types"
 )
 
-// StartScrollSimulation initializes a new scroll simulation.
-func StartScrollSimulation(scroll types.Scroll) types.GeneInterventionPlan {
-	trustAligned := scroll.TrustScore >= 0.7
-	hasMarkers := len(scroll.GeneticMarkers) > 0
-
-	// Low trust + no markers -> discovery loop + recalibrate
-	if !trustAligned && !hasMarkers {
-		return types.GeneInterventionPlan{
-			MutationLoopID:      "discovery_loop",
-			TargetedGenes:       []string{},
-			TrustAligned:        false,
-			RequiredRecalibrate: true,
-		}
+func simulateHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
 
-	// High trust + flare + markers -> flare loop + enriched fields
-	if trustAligned && scroll.IsFlareEvent && hasMarkers {
-		return types.GeneInterventionPlan{
-			MutationLoopID:      "flare_mutation_loop",
-			TargetedGenes:       scroll.GeneticMarkers,
-			TrustAligned:        true,
-			RequiredRecalibrate: false,
-			PredictedRelief:     0.87,
-			FlareSuppression:    0.91,
-			RebirthEligible:     true,
-		}
+	var scroll types.Scroll
+	if err := json.NewDecoder(r.Body).Decode(&scroll); err != nil {
+		http.Error(w, "invalid input", http.StatusBadRequest)
+		return
 	}
 
-	// Default fallback
-	fmt.Printf("Scroll %s falling back to default/compost\n", scroll.ID)
-	return types.GeneInterventionPlan{
-		MutationLoopID:      "compost_stream",
-		TargetedGenes:       scroll.GeneticMarkers,
-		TrustAligned:        trustAligned,
-		RequiredRecalibrate: true,
-	}
+	result := StartScrollSimulation(scroll)
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(result)
+}
+
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// Optional but nice: self-describing schema endpoint
+func schemaHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"endpoints": map[string]any{
+			"/health": map[string]string{
+				"method": "GET",
+				"desc":   "service health check",
+			},
+			"/simulate": map[string]string{
+				"method": "POST",
+				"desc":   "run scroll simulation and return a GeneInterventionPlan",
+			},
+			"/schema": map[string]string{
+				"method": "GET",
+				"desc":   "self-description of the service",
+			},
+		},
+		"types": map[string]any{
+			"Scroll":               "core/shared/types.Scroll",
+			"GeneInterventionPlan": "core/shared/types.GeneInterventionPlan",
+		},
+	})
+}
+
+func StartServer(addr string) error {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", healthHandler)
+	mux.HandleFunc("/schema", schemaHandler)
+	mux.HandleFunc("/simulate", simulateHandler)
+
+	log.Printf("Scroll Engine API listening on %s", addr)
+	return http.ListenAndServe(addr, mux)
 }

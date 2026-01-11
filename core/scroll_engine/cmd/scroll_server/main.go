@@ -1,7 +1,13 @@
 package main
 
-import scrollengine "Maple-OS/modem_os/core/scroll_engine"
+import (
+    "log"
+
+    scrollengine "Maple-OS/modem_os/core/scroll_engine"
+)
 
 func main() {
-	scrollengine.StartServer()
+	if err := scrollengine.StartServer(":8282"); err != nil {
+		log.Fatal(err)
+	}
 }
