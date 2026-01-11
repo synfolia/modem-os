@@ -29,3 +29,7 @@ __pycache__/
 
 # generated traces
 core/research/trace_store/
+
+# local dev
+venv/
+core/research/trace_store/*.json
