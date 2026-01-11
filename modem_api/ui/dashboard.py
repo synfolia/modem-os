@@ -336,6 +336,91 @@ def _page(title: str, body: str) -> str:
         color: #334155;
     }}
 
+    /* Verdict Pills */
+    .verdict-pill {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }}
+    .verdict-stable {{ background: #dcfce7; color: #166534; }}
+    .verdict-failure {{ background: #fee2e2; color: #991b1b; }}
+    .verdict-inconclusive {{ background: #fef3c7; color: #92400e; }}
+
+    /* Hypothesis Box */
+    .hypothesis-box {{
+      background: white;
+      border-left: 4px solid var(--primary);
+      padding: 16px;
+      border-radius: 6px;
+      font-style: italic;
+      color: #334155;
+      margin-bottom: 24px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }}
+
+    /* Status Checklist */
+    .status-checklist {{
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+    }}
+    .status-checklist li {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      padding: 8px 12px;
+      background: white;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }}
+    .status-checklist .check {{
+      color: #22c55e;
+      font-weight: bold;
+      font-size: 1rem;
+    }}
+    .status-checklist .pending {{
+      color: #d1d5db;
+      font-weight: bold;
+      font-size: 1rem;
+    }}
+
+    /* Signal Icons */
+    .signal-success {{ color: #22c55e; }}
+    .signal-warning {{ color: #f59e0b; }}
+    .signal-error {{ color: #ef4444; }}
+    .signal-neutral {{ color: #6b7280; }}
+
+    /* Preset Buttons */
+    .preset-buttons {{
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }}
+    .preset-btn {{
+      font-size: 0.8rem;
+      padding: 6px 12px;
+      background: #f3f4f6;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }}
+    .preset-btn:hover {{
+      background: #e5e7eb;
+      border-color: var(--primary);
+    }}
+
   </style>
 </head>
 <body>
@@ -423,6 +508,11 @@ async def home():
         <div class="input-group">
             <label id="prompt-label">Prompt / Objective</label>
             <textarea id="prompt-input" placeholder="Describe your research goal or task..."></textarea>
+            <div id="preset-buttons" class="preset-buttons" style="display: none;">
+              <button type="button" class="preset-btn" onclick="fillPreset(0)">Conflicting Goals</button>
+              <button type="button" class="preset-btn" onclick="fillPreset(1)">Underspecified Objective</button>
+              <button type="button" class="preset-btn" onclick="fillPreset(2)">Adversarial Constraint</button>
+            </div>
         </div>
 
         <div style="display: flex; justify-content: flex-end; gap: 12px;">
@@ -482,99 +572,182 @@ async def home():
         const prompt = job.prompt || "";
         const resultLower = result.toLowerCase();
 
-        // 1. Generate Observations (Heuristics)
+        // 1. Determine Lifecycle Status (5 steps)
+        const lifecycle = {{
+          registered: true,  // Always true if job exists
+          injected: resultLower.includes("latent") || result.length > 0,
+          executed: result.includes("Latent Execution Result") || resultLower.includes("reasoning"),
+          analyzed: result.includes("No actionable") || result.includes("Triggering") || resultLower.includes("fallback") || resultLower.includes("conflict"),
+          interpreted: true  // Always true if we're rendering
+        }};
+
+        const lifecycleHtml = `
+        <ul class="status-checklist">
+          <li><span class="${{lifecycle.registered ? 'check' : 'pending'}}">${{lifecycle.registered ? '✓' : '○'}}</span> Registered</li>
+          <li><span class="${{lifecycle.injected ? 'check' : 'pending'}}">${{lifecycle.injected ? '✓' : '○'}}</span> Injected</li>
+          <li><span class="${{lifecycle.executed ? 'check' : 'pending'}}">${{lifecycle.executed ? '✓' : '○'}}</span> Executed</li>
+          <li><span class="${{lifecycle.analyzed ? 'check' : 'pending'}}">${{lifecycle.analyzed ? '✓' : '○'}}</span> Analyzed</li>
+          <li><span class="${{lifecycle.interpreted ? 'check' : 'pending'}}">${{lifecycle.interpreted ? '✓' : '○'}}</span> Interpreted</li>
+        </ul>
+        `;
+
+        // 2. Generate Observations with Icons
         let observations = [];
 
-        // Check for specific keywords/phrases in the logs
-        if (resultLower.includes("fallback") || resultLower.includes("defaulting")) {{
-            observations.push("Fallback heuristic triggered");
-        }}
-        if (resultLower.includes("ambiguous") || resultLower.includes("unclear")) {{
-            observations.push("Ambiguous constraints detected");
-        }}
-        if (resultLower.includes("conflict")) {{
-            observations.push("Conflicting goals detected");
-        }}
-        if (resultLower.includes("flare")) {{
-            observations.push("Flare scroll pattern identified");
-        }}
-        if (result.includes("ATG16L1")) {{
-            observations.push("Genetic marker ATG16L1 resonance detected");
-        }}
+        // Success indicators (✓)
         if (result.includes("Triggering Coconut mutation loop")) {{
-            observations.push("Downstream simulation trigger activated");
-        }}
-        if (result.includes("No actionable scroll-to-gene patterns")) {{
-            observations.push("No scroll-to-gene mapping identified");
-        }}
-        if (result.includes("Failed to reach Coconut")) {{
-            observations.push("Simulation backend connection failed");
+            observations.push({{ icon: "✓", cls: "signal-success", text: "Downstream simulation trigger activated" }});
         }}
         if (result.includes("Scroll saved to")) {{
-            observations.push("Simulation artifact persisted");
+            observations.push({{ icon: "✓", cls: "signal-success", text: "Simulation artifact persisted" }});
+        }}
+        if (result.includes("ATG16L1")) {{
+            observations.push({{ icon: "✓", cls: "signal-success", text: "Genetic marker ATG16L1 resonance detected" }});
+        }}
+        if (resultLower.includes("flare")) {{
+            observations.push({{ icon: "✓", cls: "signal-success", text: "Flare scroll pattern identified" }});
         }}
 
-        // If no specific observations, add a generic one
+        // Warning indicators (⚠)
+        if (resultLower.includes("ambiguous") || resultLower.includes("unclear")) {{
+            observations.push({{ icon: "⚠", cls: "signal-warning", text: "Ambiguous constraints detected" }});
+        }}
+        if (resultLower.includes("conflict")) {{
+            observations.push({{ icon: "⚠", cls: "signal-warning", text: "Conflicting goals detected" }});
+        }}
+        if (resultLower.includes("fallback") || resultLower.includes("defaulting")) {{
+            observations.push({{ icon: "⚠", cls: "signal-warning", text: "Fallback heuristic triggered" }});
+        }}
+
+        // Error indicators (✖)
+        if (result.includes("Failed to reach Coconut")) {{
+            observations.push({{ icon: "✖", cls: "signal-error", text: "Simulation backend connection failed" }});
+        }}
+        if (result.includes("No actionable scroll-to-gene patterns")) {{
+            observations.push({{ icon: "✖", cls: "signal-error", text: "No scroll-to-gene mapping identified" }});
+        }}
+
+        // Neutral/informational (•)
         if (observations.length === 0) {{
-            observations.push("Latent reasoning completed without specific event markers");
+            observations.push({{ icon: "•", cls: "signal-neutral", text: "Latent reasoning completed without specific event markers" }});
         }}
 
-        // 2. Generate Interpretation
-        let interpretation = "";
+        const obsListHtml = observations.map(obs =>
+          `<li><span class="${{obs.cls}}" style="font-weight:bold; margin-right:8px;">${{obs.icon}}</span>${{obs.text}}</li>`
+        ).join("");
 
+        // 3. Determine Verdict
         const hasTrigger = result.includes("Triggering Coconut mutation loop");
         const hasNoMatch = result.includes("No actionable scroll-to-gene patterns");
         const hasError = result.includes("Failed to reach Coconut");
-        const hasFlare = resultLower.includes("flare");
         const hasAmbiguity = resultLower.includes("ambiguous") || resultLower.includes("unclear");
+        const hasConflict = resultLower.includes("conflict");
 
-        if (hasTrigger) {{
-            interpretation = "The system successfully resolved the hypothesis into a concrete biological pattern and executed the corresponding simulation pipeline.";
+        let verdictClass = "verdict-inconclusive";
+        let verdictIcon = "🟡";
+        let verdictText = "Inconclusive";
+        let hypothesisStatus = "inconclusive";
+
+        if (hasError) {{
+          verdictClass = "verdict-failure";
+          verdictIcon = "🔴";
+          verdictText = "Failure Mode";
+          hypothesisStatus = "rejected due to infrastructure failure";
+        }} else if (hasAmbiguity || hasConflict) {{
+          verdictClass = "verdict-failure";
+          verdictIcon = "🔴";
+          verdictText = "Failure Mode";
+          hypothesisStatus = "confirmed - system detected problematic constraints";
+        }} else if (hasTrigger) {{
+          verdictClass = "verdict-stable";
+          verdictIcon = "🟢";
+          verdictText = "Stable";
+          hypothesisStatus = "confirmed - simulation pipeline executed successfully";
         }} else if (hasNoMatch) {{
-            if (hasAmbiguity) {{
-                interpretation = "The system detected ambiguity in the input constraints and correctly halted execution to avoid speculative simulation.";
-            }} else {{
-                interpretation = "The system evaluated the hypothesis but found insufficient evidence or specificity to warrant a downstream simulation trigger.";
-            }}
-        }} else if (hasError) {{
-            interpretation = "The system correctly identified a trigger condition but was unable to complete execution due to an infrastructure failure.";
-        }} else if (hasFlare) {{
-             interpretation = "While relevant patterns were noted, the system did not find a strong enough causal link to activate a full simulation.";
-        }} else {{
-             interpretation = "The system engaged in latent reasoning but did not reach a definitive conclusion or action state.";
+          verdictClass = "verdict-inconclusive";
+          verdictIcon = "🟡";
+          verdictText = "Inconclusive";
+          hypothesisStatus = "rejected - insufficient evidence for simulation trigger";
         }}
 
-        // 3. Render HTML
-        const obsListHtml = observations.map(o => `<li>${{o}}</li>`).join("");
+        const verdictBadge = `<span class="verdict-pill ${{verdictClass}}">${{verdictIcon}} ${{verdictText}}</span>`;
 
+        // 4. Generate Interpretation with Hypothesis Status
+        let interpretation = `<strong>Hypothesis:</strong> <em>${{hypothesisStatus}}</em><br><br>`;
+
+        if (hasTrigger) {{
+            interpretation += "The system successfully resolved the hypothesis into a concrete biological pattern and executed the corresponding simulation pipeline.";
+        }} else if (hasNoMatch) {{
+            if (hasAmbiguity) {{
+                interpretation += "The system detected ambiguity in the input constraints and correctly halted execution to avoid speculative simulation.";
+            }} else {{
+                interpretation += "The system evaluated the hypothesis but found insufficient evidence or specificity to warrant a downstream simulation trigger.";
+            }}
+        }} else if (hasError) {{
+            interpretation += "The system correctly identified a trigger condition but was unable to complete execution due to an infrastructure failure.";
+        }} else if (hasAmbiguity || hasConflict) {{
+             interpretation += "The hypothesis successfully triggered the expected failure mode, demonstrating system safety mechanisms.";
+        }} else {{
+             interpretation += "The system engaged in latent reasoning but did not reach a definitive conclusion or action state.";
+        }}
+
+        // 5. Raw Logs (Collapsed)
         const logsHtml = `
-        <details style="margin-top: 16px;">
-            <summary style="font-size: 0.85rem;">Raw Execution Log</summary>
-            <pre class="sim-signals" style="margin-top: 8px;">${{escapeHtml(result) || "No logs captured."}}</pre>
+        <details style="margin-top: 20px;">
+            <summary style="font-weight: 500; color: #64748b;">Raw Execution Log</summary>
+            <pre class="sim-signals" style="margin-top: 12px;">${{escapeHtml(result) || "No logs captured."}}</pre>
         </details>
         `;
 
+        // 6. Render Complete Panel
         return `
-        <div class="sim-panel">
-            <h3 style="margin-top:0; border-bottom:1px solid #e2e8f0; padding-bottom:12px; margin-bottom:16px; font-size:1rem;">Simulation Observations</h3>
-
-            <div class="sim-row" style="margin-bottom: 20px;">
-                <div class="sim-label">Hypothesis</div>
-                <div class="sim-value" style="font-style: italic;">"${{escapeHtml(prompt)}}"</div>
+        <div class="sim-panel" id="simulation-output">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+              <h3 style="margin:0; font-size:1.1rem;">Experiment Results</h3>
+              ${{verdictBadge}}
             </div>
 
-            <ul style="margin: 0; padding-left: 20px; font-size: 0.95rem; color: var(--text); margin-bottom: 24px;">
-                ${{obsListHtml}}
-            </ul>
+            <div style="margin-bottom: 24px;">
+              <div class="sim-label" style="margin-bottom: 10px;">Simulation Status</div>
+              ${{lifecycleHtml}}
+            </div>
 
-            <h3 style="margin-top:0; border-bottom:1px solid #e2e8f0; padding-bottom:12px; margin-bottom:16px; font-size:1rem;">Interpretation</h3>
-            <div class="sim-value" style="font-weight: 500; color: #334155;">
+            <div style="margin-bottom: 24px;">
+              <div class="sim-label" style="margin-bottom: 10px;">Hypothesis Under Test</div>
+              <div class="hypothesis-box">"${{escapeHtml(prompt)}}"</div>
+            </div>
+
+            <div style="margin-bottom: 24px;">
+              <div class="sim-label" style="margin-bottom: 10px;">Observed Signals</div>
+              <ul style="margin: 0; padding-left: 24px; font-size: 0.9rem; color: var(--text);">
+                ${{obsListHtml}}
+              </ul>
+            </div>
+
+            <div style="margin-bottom: 0;">
+              <div class="sim-label" style="margin-bottom: 10px;">Interpretation</div>
+              <div class="sim-value" style="font-weight: 400; color: #334155; line-height: 1.7;">
                 ${{interpretation}}
+              </div>
             </div>
 
             ${{logsHtml}}
         </div>
         `;
+      }}
+
+      const PRESETS = [
+        "What happens when the system receives two objectives that directly contradict each other?",
+        "How does the planner behave when given a vague objective with no concrete success criteria?",
+        "Does the system collapse or adapt when presented with constraints designed to trigger edge cases?"
+      ];
+
+      function fillPreset(index) {{
+        const inputEl = document.getElementById("prompt-input");
+        if (inputEl && PRESETS[index]) {{
+          inputEl.value = PRESETS[index];
+          inputEl.focus();
+        }}
       }}
 
       function updateModeExplainer() {{
@@ -594,6 +767,12 @@ async def home():
         const ph = MODE_PLACEHOLDERS[val] || "Describe your research goal or task...";
         const inputEl = document.getElementById("prompt-input");
         if (inputEl) inputEl.placeholder = ph;
+
+        // Show/hide preset buttons for simulation mode
+        const presetButtons = document.getElementById("preset-buttons");
+        if (presetButtons) {{
+          presetButtons.style.display = val === "simulation" ? "flex" : "none";
+        }}
       }}
 
       document.getElementById("mode-select").addEventListener("change", updateModeExplainer);
@@ -661,6 +840,17 @@ async def home():
                 }}
 
                 resPreview.innerHTML = html;
+
+                // Auto-scroll to output for simulation mode
+                if (job.kind === "simulation") {{
+                  setTimeout(() => {{
+                    const outputEl = document.getElementById("simulation-output");
+                    if (outputEl) {{
+                      outputEl.scrollIntoView({{ behavior: "smooth", block: "start" }});
+                    }}
+                  }}, 100);
+                }}
+
                 break;
               }}
 
