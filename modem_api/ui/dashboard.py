@@ -470,73 +470,99 @@ async def home():
       function renderSimulationOutput(job) {{
         const result = job.result || "";
         const prompt = job.prompt || "";
+        const resultLower = result.toLowerCase();
 
-        // 1. Analyze Heuristics & Outcome
-        let outcome = '<span class="badge score-low">Unknown</span>';
-        let heuristics = [];
-        let interpretation = "System behavior could not be determined from logs.";
+        // 1. Generate Observations (Heuristics)
+        let observations = [];
 
-        const hasFlare = result.includes("Flare scroll detected") || result.includes("flare");
-        const hasGenetic = result.includes("ATG16L1");
-        const hasTrigger = result.includes("Triggering Coconut mutation loop");
-        const hasNoMatch = result.includes("No actionable scroll-to-gene patterns") || result.includes("No actionable");
-        const hasError = result.includes("Failed to reach Coconut") || result.includes("Go server error");
-
-        if (hasGenetic) heuristics.push("Genetic Signal (ATG16L1)");
-        if (hasFlare) heuristics.push("Flare Pattern Match");
-
-        if (hasTrigger) {{
-            outcome = '<span class="badge score-high">Executed</span>';
-            interpretation = "The system detected a high-confidence pattern and triggered the downstream simulation.";
-        }} else if (hasNoMatch) {{
-            outcome = '<span class="badge score-med">Halted</span>';
-            if (heuristics.length === 0) heuristics.push("Negative Pattern Match");
-            interpretation = "Latent reasoning did not find sufficient evidence to proceed with simulation.";
-        }} else if (hasError) {{
-            outcome = '<span class="badge score-low">Fallback</span>';
-            heuristics.push("Service Error");
-            interpretation = "The system attempted execution but the simulation backend was unreachable.";
-        }} else if (result.trim() !== "") {{
-             outcome = '<span class="badge score-med">Completed</span>';
-             interpretation = "The simulation completed without triggering specific downstream actions.";
+        // Check for specific keywords/phrases in the logs
+        if (resultLower.includes("fallback") || resultLower.includes("defaulting")) {{
+            observations.push("Fallback heuristic triggered");
+        }}
+        if (resultLower.includes("ambiguous") || resultLower.includes("unclear")) {{
+            observations.push("Ambiguous constraints detected");
+        }}
+        if (resultLower.includes("conflict")) {{
+            observations.push("Conflicting goals detected");
+        }}
+        if (resultLower.includes("flare")) {{
+            observations.push("Flare scroll pattern identified");
+        }}
+        if (result.includes("ATG16L1")) {{
+            observations.push("Genetic marker ATG16L1 resonance detected");
+        }}
+        if (result.includes("Triggering Coconut mutation loop")) {{
+            observations.push("Downstream simulation trigger activated");
+        }}
+        if (result.includes("No actionable scroll-to-gene patterns")) {{
+            observations.push("No scroll-to-gene mapping identified");
+        }}
+        if (result.includes("Failed to reach Coconut")) {{
+            observations.push("Simulation backend connection failed");
+        }}
+        if (result.includes("Scroll saved to")) {{
+            observations.push("Simulation artifact persisted");
         }}
 
-        // 2. Filter Signals
-        const lines = result.split("\\n");
-        const signals = lines.join("\\n");
+        // If no specific observations, add a generic one
+        if (observations.length === 0) {{
+            observations.push("Latent reasoning completed without specific event markers");
+        }}
 
-        const heuristicsHtml = heuristics.length > 0
-            ? heuristics.map(h => `<span class="badge score-med" style="margin-right:6px;">${{h}}</span>`).join("")
-            : '<span style="color:var(--text-muted); font-style:italic;">None</span>';
+        // 2. Generate Interpretation
+        let interpretation = "";
+
+        const hasTrigger = result.includes("Triggering Coconut mutation loop");
+        const hasNoMatch = result.includes("No actionable scroll-to-gene patterns");
+        const hasError = result.includes("Failed to reach Coconut");
+        const hasFlare = resultLower.includes("flare");
+        const hasAmbiguity = resultLower.includes("ambiguous") || resultLower.includes("unclear");
+
+        if (hasTrigger) {{
+            interpretation = "The system successfully resolved the hypothesis into a concrete biological pattern and executed the corresponding simulation pipeline.";
+        }} else if (hasNoMatch) {{
+            if (hasAmbiguity) {{
+                interpretation = "The system detected ambiguity in the input constraints and correctly halted execution to avoid speculative simulation.";
+            }} else {{
+                interpretation = "The system evaluated the hypothesis but found insufficient evidence or specificity to warrant a downstream simulation trigger.";
+            }}
+        }} else if (hasError) {{
+            interpretation = "The system correctly identified a trigger condition but was unable to complete execution due to an infrastructure failure.";
+        }} else if (hasFlare) {{
+             interpretation = "While relevant patterns were noted, the system did not find a strong enough causal link to activate a full simulation.";
+        }} else {{
+             interpretation = "The system engaged in latent reasoning but did not reach a definitive conclusion or action state.";
+        }}
+
+        // 3. Render HTML
+        const obsListHtml = observations.map(o => `<li>${{o}}</li>`).join("");
+
+        const logsHtml = `
+        <details style="margin-top: 16px;">
+            <summary style="font-size: 0.85rem;">Raw Execution Log</summary>
+            <pre class="sim-signals" style="margin-top: 8px;">${{result || "No logs captured."}}</pre>
+        </details>
+        `;
 
         return `
         <div class="sim-panel">
             <h3 style="margin-top:0; border-bottom:1px solid #e2e8f0; padding-bottom:12px; margin-bottom:16px; font-size:1rem;">Simulation Observations</h3>
 
-            <div class="sim-row">
+            <div class="sim-row" style="margin-bottom: 20px;">
                 <div class="sim-label">Hypothesis</div>
                 <div class="sim-value" style="font-style: italic;">"${{prompt}}"</div>
             </div>
 
-            <div class="sim-row">
-                <div class="sim-label">Observed Signals</div>
-                <div class="sim-value"><pre class="sim-signals">${{signals || "No signals captured."}}</pre></div>
+            <ul style="margin: 0; padding-left: 20px; font-size: 0.95rem; color: var(--text); margin-bottom: 24px;">
+                ${{obsListHtml}}
+            </ul>
+
+            <h3 style="margin-top:0; border-bottom:1px solid #e2e8f0; padding-bottom:12px; margin-bottom:16px; font-size:1rem;">Interpretation</h3>
+            <div class="sim-value" style="font-weight: 500; color: #334155;">
+                ${{interpretation}}
             </div>
 
-             <div class="sim-row">
-                <div class="sim-label">Heuristics Triggered</div>
-                <div class="sim-value">${{heuristicsHtml}}</div>
-            </div>
-
-             <div class="sim-row">
-                <div class="sim-label">Outcome</div>
-                <div class="sim-value">${{outcome}}</div>
-            </div>
-
-             <div class="sim-row">
-                <div class="sim-label">Interpretation</div>
-                <div class="sim-value">${{interpretation}}</div>
-            </div>
+            ${{logsHtml}}
         </div>
         `;
       }}
