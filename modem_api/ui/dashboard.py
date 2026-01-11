@@ -16,7 +16,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from core.task_manager.runner import new_task
-from core.router.latent_mode.latent_executor import latent_execute
+from core.router.latent_mode.latent_executor import latent_execute, run_probe_suite_to_dict
 from core.shared.quality_score import quality_score
 
 # ---- Config ----
@@ -54,6 +54,25 @@ def _run_simulate_wrapper(prompt: str) -> str:
         print("\nLatent Execution Result:", res)
     return f.getvalue()
 
+def _run_experiment_wrapper(
+    hypothesis: str,
+    protocol: str,
+    probe_count: int,
+    include_control: bool
+) -> Dict[str, Any]:
+    """Run a probe suite experiment and return structured results."""
+    f = io.StringIO()
+    with contextlib.redirect_stdout(f):
+        experiment_results = run_probe_suite_to_dict(
+            hypothesis=hypothesis,
+            protocol=protocol,
+            probe_count=probe_count,
+            include_control=include_control
+        )
+    # Attach console output to results
+    experiment_results["console_output"] = f.getvalue()
+    return experiment_results
+
 # ---- Jobs ----
 @dataclass
 class Job:
@@ -67,6 +86,11 @@ class Job:
     result: Optional[str] = None
     error: Optional[str] = None
     trace_file: Optional[str] = None
+    # Experiment-specific fields
+    protocol: Optional[str] = None
+    probe_count: Optional[int] = None
+    include_control: Optional[bool] = None
+    experiment_results: Optional[Dict[str, Any]] = None
 
 JOBS: Dict[str, Job] = {}
 
@@ -131,6 +155,18 @@ def _run_job(job_id: str) -> None:
             result = _run_task_wrapper(job.prompt or "")
         elif job.kind == "simulation":
             result = _run_simulate_wrapper(job.prompt or "")
+        elif job.kind == "experiment":
+            # Run probe suite experiment
+            experiment_results = _run_experiment_wrapper(
+                hypothesis=job.prompt or "",
+                protocol=job.protocol or "underspecification_stress",
+                probe_count=job.probe_count or 3,
+                include_control=job.include_control if job.include_control is not None else True
+            )
+            job.experiment_results = experiment_results
+            result = experiment_results.get("console_output", "")
+            # Save experiment trace
+            _save_experiment_trace(job_id, job.prompt or "", experiment_results)
 
         job.result = result
         job.status = "done"
@@ -141,6 +177,42 @@ def _run_job(job_id: str) -> None:
         job.finished_at = time.time()
         after = set(_list_trace_files())
         job.trace_file = _guess_new_trace(before, after)
+
+
+def _save_experiment_trace(job_id: str, hypothesis: str, experiment_results: Dict[str, Any]) -> None:
+    """Save experiment results to trace store."""
+    os.makedirs(TRACE_DIR, exist_ok=True)
+    timestamp = datetime.datetime.utcnow().isoformat()
+    trace_filename = f"replay_{timestamp.replace(':', '-')}.json"
+    trace_path = os.path.join(TRACE_DIR, trace_filename)
+
+    trace_data = {
+        "timestamp": timestamp,
+        "prompt": hypothesis,
+        "result": experiment_results.get("console_output", ""),
+        "job_id": job_id,
+        "type": "experiment",
+        "experiment": {
+            "hypothesis": hypothesis,
+            "protocol": experiment_results.get("protocol"),
+            "probe_count": experiment_results.get("probe_count"),
+            "include_control": experiment_results.get("include_control"),
+            "probes": experiment_results.get("probes", []),
+            "control_probe": experiment_results.get("control_probe"),
+            "aggregate_stats": experiment_results.get("aggregate_stats", {}),
+            "delta_vs_control": experiment_results.get("delta_vs_control", {})
+        },
+        "steps": [
+            {"action": "build_probe_suite", "status": "completed"},
+            {"action": "execute_probes", "status": "completed", "count": experiment_results.get("probe_count", 0)},
+            {"action": "parse_logs", "status": "completed"},
+            {"action": "classify_outcomes", "status": "completed"},
+            {"action": "compute_aggregates", "status": "completed"}
+        ]
+    }
+
+    with open(trace_path, "w", encoding="utf-8") as f:
+        json.dump(trace_data, f, indent=2)
 
 # ---- HTML ----
 def _page(title: str, body: str) -> str:
@@ -421,6 +493,154 @@ def _page(title: str, body: str) -> str:
       border-color: var(--primary);
     }}
 
+    /* Experiment Controls */
+    .experiment-controls {{
+      display: grid;
+      grid-template-columns: 1fr 120px 140px;
+      gap: 16px;
+      margin-top: 16px;
+      padding: 16px;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }}
+    .experiment-controls .input-group {{
+      margin-bottom: 0;
+    }}
+    .checkbox-group {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }}
+    .checkbox-group input[type="checkbox"] {{
+      width: auto;
+    }}
+
+    /* Experiment Results Table */
+    .experiment-table {{
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin-top: 16px;
+    }}
+    .experiment-table th,
+    .experiment-table td {{
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }}
+    .experiment-table th {{
+      background: #f8fafc;
+      font-weight: 600;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }}
+    .experiment-table tr:hover {{
+      background: #f9fafb;
+    }}
+    .experiment-table .control-row {{
+      background: #fefce8;
+    }}
+    .experiment-table .control-row:hover {{
+      background: #fef9c3;
+    }}
+
+    /* Outcome Badges */
+    .outcome-badge {{
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }}
+    .outcome-stable {{ background: #dcfce7; color: #166534; }}
+    .outcome-graceful {{ background: #dbeafe; color: #1e40af; }}
+    .outcome-fallback {{ background: #fef3c7; color: #92400e; }}
+    .outcome-violation {{ background: #fee2e2; color: #991b1b; }}
+    .outcome-halt {{ background: #f3e8ff; color: #7e22ce; }}
+    .outcome-undefined {{ background: #f1f5f9; color: #475569; }}
+    .outcome-infra {{ background: #fecaca; color: #b91c1c; }}
+
+    /* Delta Stats */
+    .delta-card {{
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-top: 16px;
+    }}
+    .delta-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 16px;
+      margin-top: 12px;
+    }}
+    .delta-item {{
+      text-align: center;
+    }}
+    .delta-value {{
+      font-size: 1.5rem;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+    }}
+    .delta-value.positive {{ color: #16a34a; }}
+    .delta-value.negative {{ color: #dc2626; }}
+    .delta-value.neutral {{ color: #6b7280; }}
+    .delta-label {{
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }}
+
+    /* Structured Fields */
+    .structured-fields {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      font-size: 0.85rem;
+    }}
+    .field-item {{
+      background: #f8fafc;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }}
+    .field-label {{
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }}
+    .field-value {{
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--text);
+    }}
+    .field-value.true {{ color: #16a34a; }}
+    .field-value.false {{ color: #6b7280; }}
+
+    /* Probe Detail Expand */
+    .probe-expand {{
+      cursor: pointer;
+      user-select: none;
+    }}
+    .probe-expand:hover {{
+      color: var(--primary);
+    }}
+    .probe-detail {{
+      display: none;
+      padding: 16px;
+      background: #f9fafb;
+      border-top: 1px solid var(--border);
+    }}
+    .probe-detail.active {{
+      display: block;
+    }}
+
   </style>
 </head>
 <body>
@@ -512,6 +732,29 @@ async def home():
               <button type="button" class="preset-btn" onclick="fillPreset(0)">Conflicting Goals</button>
               <button type="button" class="preset-btn" onclick="fillPreset(1)">Underspecified Objective</button>
               <button type="button" class="preset-btn" onclick="fillPreset(2)">Adversarial Constraint</button>
+            </div>
+        </div>
+
+        <div id="experiment-controls" class="experiment-controls" style="display: none;">
+            <div class="input-group">
+                <label>Probe Protocol</label>
+                <select id="probe-protocol">
+                    <option value="conflict_stress">Conflict Stress</option>
+                    <option value="underspecification_stress">Underspecification Stress</option>
+                    <option value="ambiguity_stress">Ambiguity Stress</option>
+                    <option value="safety_boundary">Safety Boundary</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Probe Count</label>
+                <input type="number" id="probe-count" value="3" min="1" max="10" />
+            </div>
+            <div class="input-group">
+                <label>&nbsp;</label>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="include-control" checked />
+                    <label for="include-control" style="margin-bottom: 0;">Include Control</label>
+                </div>
             </div>
         </div>
 
@@ -736,6 +979,303 @@ async def home():
         `;
       }}
 
+      // Outcome type to CSS class mapping
+      const OUTCOME_CLASSES = {{
+        "stable_execution": "outcome-stable",
+        "graceful_degradation": "outcome-graceful",
+        "fallback_triggered": "outcome-fallback",
+        "constraint_violation": "outcome-violation",
+        "safety_halt": "outcome-halt",
+        "undefined_behavior": "outcome-undefined",
+        "infrastructure_failure": "outcome-infra"
+      }};
+
+      // Outcome type to display label mapping
+      const OUTCOME_LABELS = {{
+        "stable_execution": "Stable",
+        "graceful_degradation": "Graceful Deg.",
+        "fallback_triggered": "Fallback",
+        "constraint_violation": "Violation",
+        "safety_halt": "Safety Halt",
+        "undefined_behavior": "Undefined",
+        "infrastructure_failure": "Infra Failure"
+      }};
+
+      // Protocol display names
+      const PROTOCOL_LABELS = {{
+        "conflict_stress": "Conflict Stress",
+        "underspecification_stress": "Underspecification Stress",
+        "ambiguity_stress": "Ambiguity Stress",
+        "safety_boundary": "Safety Boundary",
+        "control": "Control (Baseline)"
+      }};
+
+      function renderOutcomeBadge(outcomeType, confidence) {{
+        const cls = OUTCOME_CLASSES[outcomeType] || "outcome-undefined";
+        const label = OUTCOME_LABELS[outcomeType] || outcomeType;
+        const confPct = Math.round(confidence * 100);
+        return `<span class="outcome-badge ${{cls}}">${{label}} (${{confPct}}%)</span>`;
+      }}
+
+      function renderDeltaValue(value, isPercentage) {{
+        let cls = "neutral";
+        let prefix = "";
+        if (value > 0) {{
+          cls = "positive";
+          prefix = "+";
+        }} else if (value < 0) {{
+          cls = "negative";
+        }}
+        const displayVal = isPercentage ? (value * 100).toFixed(1) + "%" : value.toFixed(3);
+        return `<div class="delta-value ${{cls}}">${{prefix}}${{displayVal}}</div>`;
+      }}
+
+      function renderStructuredFields(fields) {{
+        const termMode = fields.termination_mode || "unknown";
+        const fallbackUsed = fields.fallback_used ? "Yes" : "No";
+        const mappings = (fields.mapping_evidence || []).length;
+        const heuristics = (fields.heuristics_triggered || []).length;
+        const uncertainty = (fields.uncertainty_markers || []).length;
+
+        return `
+          <div class="structured-fields">
+            <div class="field-item">
+              <div class="field-label">Termination Mode</div>
+              <div class="field-value">${{termMode.replace(/_/g, " ")}}</div>
+            </div>
+            <div class="field-item">
+              <div class="field-label">Fallback Used</div>
+              <div class="field-value ${{fields.fallback_used ? 'true' : 'false'}}">${{fallbackUsed}}</div>
+            </div>
+            <div class="field-item">
+              <div class="field-label">Mappings Found</div>
+              <div class="field-value">${{mappings}}</div>
+            </div>
+            <div class="field-item">
+              <div class="field-label">Heuristics Triggered</div>
+              <div class="field-value">${{heuristics}}</div>
+            </div>
+            <div class="field-item">
+              <div class="field-label">Uncertainty Markers</div>
+              <div class="field-value">${{uncertainty}}</div>
+            </div>
+          </div>
+        `;
+      }}
+
+      function toggleProbeDetail(probeId) {{
+        const detail = document.getElementById("detail-" + probeId);
+        if (detail) {{
+          if (detail.style.display === "none") {{
+            detail.style.display = "table-row";
+          }} else {{
+            detail.style.display = "none";
+          }}
+        }}
+      }}
+
+      function renderExperimentOutput(job) {{
+        const exp = job.experiment_results;
+        if (!exp) return "<p>No experiment results available.</p>";
+
+        const hypothesis = exp.hypothesis || job.prompt || "";
+        const protocol = exp.protocol || "unknown";
+        const probes = exp.probes || [];
+        const controlProbe = exp.control_probe;
+        const aggregateStats = exp.aggregate_stats || {{}};
+        const deltaVsControl = exp.delta_vs_control || {{}};
+
+        // Header with protocol and stats
+        const protocolLabel = PROTOCOL_LABELS[protocol] || protocol;
+        const totalProbes = aggregateStats.total_probes || probes.filter(p => !p.is_control).length;
+        const stabilityScore = aggregateStats.stability_score || 0;
+        const mostCommon = aggregateStats.most_common_outcome || "N/A";
+        const mostCommonLabel = OUTCOME_LABELS[mostCommon] || mostCommon;
+
+        // Determine overall verdict based on divergence and stability
+        let verdictClass = "verdict-inconclusive";
+        let verdictIcon = "~";
+        let verdictText = "Inconclusive";
+
+        const divergence = deltaVsControl.divergence_score || 0;
+        if (divergence >= 0.5) {{
+          verdictClass = "verdict-failure";
+          verdictIcon = "!";
+          verdictText = "Significant Divergence";
+        }} else if (stabilityScore >= 0.8 && mostCommon === "stable_execution") {{
+          verdictClass = "verdict-stable";
+          verdictIcon = "=";
+          verdictText = "Stable";
+        }} else if (stabilityScore >= 0.6) {{
+          verdictClass = "verdict-inconclusive";
+          verdictIcon = "~";
+          verdictText = "Moderate Variance";
+        }}
+
+        const verdictBadge = `<span class="verdict-pill ${{verdictClass}}">${{verdictIcon}} ${{verdictText}}</span>`;
+
+        // Build probe table rows
+        let probeRows = "";
+        probes.forEach((probe, idx) => {{
+          const rowClass = probe.is_control ? "control-row" : "";
+          const typeLabel = probe.is_control ? "CONTROL" : `Probe ${{idx + 1}}`;
+          const outcomeHtml = renderOutcomeBadge(probe.outcome_type, probe.outcome_confidence);
+          const fields = probe.structured_fields || {{}};
+          const fallbackIcon = fields.fallback_used ? '<span style="color: #f59e0b;">Yes</span>' : '<span style="color: #6b7280;">No</span>';
+          const execTime = (probe.execution_time_ms || 0).toFixed(0);
+
+          probeRows += `
+            <tr class="${{rowClass}}">
+              <td>
+                <span class="probe-expand" onclick="toggleProbeDetail('${{probe.probe_id}}')">
+                  <strong>${{typeLabel}}</strong>
+                </span>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
+                  ${{escapeHtml((probe.probe_text || "").substring(0, 60))}}${{(probe.probe_text || "").length > 60 ? "..." : ""}}
+                </div>
+              </td>
+              <td>${{outcomeHtml}}</td>
+              <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">
+                ${{(fields.termination_mode || "unknown").replace(/_/g, " ")}}
+              </td>
+              <td>${{fallbackIcon}}</td>
+              <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">${{execTime}}ms</td>
+            </tr>
+            <tr id="detail-${{probe.probe_id}}" style="display: none;">
+              <td colspan="5" style="padding: 0;">
+                <div class="probe-detail active" style="display: block;">
+                  <div style="margin-bottom: 12px;">
+                    <strong>Full Probe Text:</strong>
+                    <div style="margin-top: 8px; padding: 12px; background: white; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem;">
+                      ${{escapeHtml(probe.probe_text || "")}}
+                    </div>
+                  </div>
+                  <div style="margin-bottom: 12px;">
+                    <strong>Structured Fields:</strong>
+                    <div style="margin-top: 8px;">
+                      ${{renderStructuredFields(fields)}}
+                    </div>
+                  </div>
+                  <details style="margin-top: 12px;">
+                    <summary style="font-weight: 500; color: #64748b; cursor: pointer;">Raw Output</summary>
+                    <pre class="sim-signals" style="margin-top: 8px; max-height: 200px;">${{escapeHtml(probe.raw_output || "No output captured.")}}</pre>
+                  </details>
+                </div>
+              </td>
+            </tr>
+          `;
+        }});
+
+        // Build delta vs control section
+        let deltaHtml = "";
+        if (deltaVsControl.available) {{
+          const controlOutcome = OUTCOME_LABELS[deltaVsControl.control_outcome] || deltaVsControl.control_outcome;
+          deltaHtml = `
+            <div class="delta-card">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h4 style="margin: 0; font-size: 0.95rem;">Delta vs Control</h4>
+                <span class="badge score-med" style="font-size: 0.75rem;">Control: ${{controlOutcome}}</span>
+              </div>
+              <div class="delta-grid">
+                <div class="delta-item">
+                  ${{renderDeltaValue(deltaVsControl.divergence_score || 0, false)}}
+                  <div class="delta-label">Divergence Score</div>
+                </div>
+                <div class="delta-item">
+                  ${{renderDeltaValue(deltaVsControl.delta_confidence || 0, false)}}
+                  <div class="delta-label">Confidence Delta</div>
+                </div>
+                <div class="delta-item">
+                  ${{renderDeltaValue(deltaVsControl.delta_fallback_rate || 0, true)}}
+                  <div class="delta-label">Fallback Rate Delta</div>
+                </div>
+                <div class="delta-item">
+                  ${{renderDeltaValue(deltaVsControl.delta_uncertainty_density || 0, false)}}
+                  <div class="delta-label">Uncertainty Delta</div>
+                </div>
+              </div>
+            </div>
+          `;
+        }}
+
+        // Build outcome distribution
+        const outcomeDist = aggregateStats.outcome_distribution || {{}};
+        let distHtml = "";
+        Object.entries(outcomeDist).forEach(([outcome, count]) => {{
+          const label = OUTCOME_LABELS[outcome] || outcome;
+          const cls = OUTCOME_CLASSES[outcome] || "outcome-undefined";
+          const pct = totalProbes > 0 ? Math.round((count / totalProbes) * 100) : 0;
+          distHtml += `
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+              <span class="outcome-badge ${{cls}}" style="min-width: 100px;">${{label}}</span>
+              <div style="flex: 1; background: #e5e7eb; height: 8px; border-radius: 4px; overflow: hidden;">
+                <div style="width: ${{pct}}%; background: var(--primary); height: 100%;"></div>
+              </div>
+              <span style="font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; min-width: 60px; text-align: right;">${{count}} (${{pct}}%)</span>
+            </div>
+          `;
+        }});
+
+        // Raw console logs
+        const consoleOutput = exp.console_output || job.result || "";
+        const logsHtml = `
+          <details style="margin-top: 20px;">
+            <summary style="font-weight: 500; color: #64748b;">Raw Console Output</summary>
+            <pre class="sim-signals" style="margin-top: 12px; max-height: 300px;">${{escapeHtml(consoleOutput) || "No logs captured."}}</pre>
+          </details>
+        `;
+
+        return `
+          <div class="sim-panel" id="experiment-output">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+              <div>
+                <h3 style="margin:0; font-size:1.1rem;">Experiment Results</h3>
+                <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">
+                  Protocol: <strong>${{protocolLabel}}</strong> | Probes: <strong>${{totalProbes}}</strong> | Stability: <strong>${{(stabilityScore * 100).toFixed(0)}}%</strong>
+                </div>
+              </div>
+              ${{verdictBadge}}
+            </div>
+
+            <div style="margin-bottom: 24px;">
+              <div class="sim-label" style="margin-bottom: 10px;">Hypothesis Under Test</div>
+              <div class="hypothesis-box">"${{escapeHtml(hypothesis)}}"</div>
+            </div>
+
+            <div style="margin-bottom: 24px;">
+              <div class="sim-label" style="margin-bottom: 10px;">Outcome Distribution</div>
+              <div style="padding: 16px; background: white; border: 1px solid var(--border); border-radius: 6px;">
+                ${{distHtml || '<div style="color: var(--text-muted);">No outcomes recorded</div>'}}
+              </div>
+            </div>
+
+            ${{deltaHtml}}
+
+            <div style="margin-top: 24px;">
+              <div class="sim-label" style="margin-bottom: 10px;">Probe Results</div>
+              <div style="overflow-x: auto;">
+                <table class="experiment-table">
+                  <thead>
+                    <tr>
+                      <th style="min-width: 200px;">Probe</th>
+                      <th style="min-width: 120px;">Outcome</th>
+                      <th style="min-width: 140px;">Termination</th>
+                      <th style="min-width: 80px;">Fallback</th>
+                      <th style="min-width: 80px;">Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${{probeRows}}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            ${{logsHtml}}
+          </div>
+        `;
+      }}
+
       const PRESETS = [
         "What happens when the system receives two objectives that directly contradict each other?",
         "How does the planner behave when given a vague objective with no concrete success criteria?",
@@ -773,6 +1313,12 @@ async def home():
         if (presetButtons) {{
           presetButtons.style.display = val === "simulation" ? "flex" : "none";
         }}
+
+        // Show/hide experiment controls for simulation mode
+        const experimentControls = document.getElementById("experiment-controls");
+        if (experimentControls) {{
+          experimentControls.style.display = val === "simulation" ? "grid" : "none";
+        }}
       }}
 
       document.getElementById("mode-select").addEventListener("change", updateModeExplainer);
@@ -799,10 +1345,27 @@ async def home():
         resPreview.innerHTML = "";
 
         try {{
-            const resp = await fetch("/api/" + mode, {{
+            let endpoint = "/api/" + mode;
+            let payload = {{ prompt }};
+
+            // For simulation mode, use experiment endpoint with probe suite parameters
+            if (mode === "simulation") {{
+              endpoint = "/api/experiment";
+              const protocol = document.getElementById("probe-protocol").value;
+              const probeCount = parseInt(document.getElementById("probe-count").value) || 3;
+              const includeControl = document.getElementById("include-control").checked;
+              payload = {{
+                prompt,
+                protocol,
+                probe_count: probeCount,
+                include_control: includeControl
+              }};
+            }}
+
+            const resp = await fetch(endpoint, {{
               method: "POST",
               headers: {{ "Content-Type": "application/json" }},
-              body: JSON.stringify({{ prompt }})
+              body: JSON.stringify(payload)
             }});
 
             if (!resp.ok) throw new Error("Failed to start job");
@@ -833,7 +1396,9 @@ async def home():
                     html += '<div style="margin-bottom: 12px;"><a href="/trace/' + job.trace_file + '" class="badge score-high" style="font-size: 0.9rem; padding: 8px 16px; text-decoration: none;">View Full Trace Artifact &rarr;</a></div>';
                 }}
 
-                if (job.kind === "simulation") {{
+                if (job.kind === "experiment" && job.experiment_results) {{
+                    html += renderExperimentOutput(job);
+                }} else if (job.kind === "simulation") {{
                     html += renderSimulationOutput(job);
                 }} else {{
                     html += '<pre>' + escapeHtml(job.result || "No output captured.") + '</pre>';
@@ -841,10 +1406,10 @@ async def home():
 
                 resPreview.innerHTML = html;
 
-                // Auto-scroll to output for simulation mode
-                if (job.kind === "simulation") {{
+                // Auto-scroll to output for experiment/simulation mode
+                if (job.kind === "experiment" || job.kind === "simulation") {{
                   setTimeout(() => {{
-                    const outputEl = document.getElementById("simulation-output");
+                    const outputEl = document.getElementById("experiment-output") || document.getElementById("simulation-output");
                     if (outputEl) {{
                       outputEl.scrollIntoView({{ behavior: "smooth", block: "start" }});
                     }}
@@ -978,6 +1543,41 @@ async def api_task(payload: Dict[str, Any]):
 @app.post("/api/simulation")
 async def api_simulation(payload: Dict[str, Any]):
     return _create_job("simulation", payload)
+
+@app.post("/api/experiment")
+async def api_experiment(payload: Dict[str, Any]):
+    """Create a probe suite experiment job."""
+    prompt = (payload.get("prompt") or "").strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Missing prompt (hypothesis)")
+
+    protocol = payload.get("protocol", "underspecification_stress")
+    probe_count = int(payload.get("probe_count", 3))
+    include_control = bool(payload.get("include_control", True))
+
+    # Validate protocol
+    valid_protocols = ["conflict_stress", "underspecification_stress", "ambiguity_stress", "safety_boundary"]
+    if protocol not in valid_protocols:
+        raise HTTPException(status_code=400, detail=f"Invalid protocol. Must be one of: {valid_protocols}")
+
+    # Validate probe count
+    if probe_count < 1 or probe_count > 10:
+        raise HTTPException(status_code=400, detail="Probe count must be between 1 and 10")
+
+    job_id = uuid.uuid4().hex
+    job = Job(
+        id=job_id,
+        kind="experiment",
+        status="queued",
+        created_at=time.time(),
+        prompt=prompt,
+        protocol=protocol,
+        probe_count=probe_count,
+        include_control=include_control,
+    )
+    JOBS[job_id] = job
+    EXECUTOR.submit(_run_job, job_id)
+    return {"job_id": job_id}
 
 def _create_job(kind: str, payload: Dict[str, Any]):
     prompt = (payload.get("prompt") or "").strip()
