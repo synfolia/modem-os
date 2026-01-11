@@ -8,6 +8,7 @@ import uuid
 import io
 import contextlib
 import datetime
+import requests
 from dataclasses import dataclass, asdict
 from typing import Any, Dict, Optional, List
 from concurrent.futures import ThreadPoolExecutor
@@ -25,6 +26,40 @@ MAX_RECENT_TRACES = 25
 EXECUTOR = ThreadPoolExecutor(max_workers=1)  # keep simple: 1 job at a time
 
 app = FastAPI()
+
+def _check_system_health() -> Dict[str, Any]:
+    # Scroll Engine
+    scroll_health = "unknown"
+    try:
+        r = requests.get("http://127.0.0.1:8282/health", timeout=1)
+        if r.status_code == 200:
+            scroll_health = "healthy"
+        else:
+            scroll_health = "degraded"
+    except Exception:
+        scroll_health = "unreachable"
+
+    # Ollama
+    ollama_health = "unknown"
+    try:
+        r = requests.get("http://127.0.0.1:11434/", timeout=1)
+        if r.status_code == 200:
+            ollama_health = "healthy"
+        else:
+            ollama_health = "degraded"
+    except Exception:
+        ollama_health = "unreachable"
+
+    # Trace Store
+    trace_count = 0
+    if os.path.exists(TRACE_DIR):
+        trace_count = len([f for f in os.listdir(TRACE_DIR) if f.endswith(".json")])
+
+    return {
+        "scroll_engine": scroll_health,
+        "ollama": ollama_health,
+        "trace_count": trace_count
+    }
 
 # ---- Research function import ----
 def _run_research(prompt: str) -> str:
@@ -660,6 +695,18 @@ def _score_badge(score: int) -> str:
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
+    # Check health
+    health = _check_system_health()
+
+    # Status colors
+    def _status_color(status):
+        if status == "healthy": return "#22c55e"
+        if status == "degraded": return "#f59e0b"
+        return "#ef4444"
+
+    scroll_color = _status_color(health["scroll_engine"])
+    ollama_color = _status_color(health["ollama"])
+
     # Gather recent traces
     files = _list_trace_files()[:MAX_RECENT_TRACES]
     traces_html = ""
@@ -714,13 +761,37 @@ async def home():
     </div>
 
     <div class="card">
+        <h2>System Modules</h2>
+        <div class="status-checklist" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+             <div class="field-item" style="background: white;">
+                <div class="field-label">Scroll Engine</div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 10px; height: 10px; border-radius: 50%; background: {scroll_color};"></div>
+                    <span style="font-weight: 500;">{health["scroll_engine"]}</span>
+                </div>
+             </div>
+             <div class="field-item" style="background: white;">
+                <div class="field-label">Ollama (Model Service)</div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 10px; height: 10px; border-radius: 50%; background: {ollama_color};"></div>
+                    <span style="font-weight: 500;">{health["ollama"]}</span>
+                </div>
+             </div>
+             <div class="field-item" style="background: white;">
+                <div class="field-label">Trace Store</div>
+                <div style="font-family: 'JetBrains Mono'; font-weight: 600;">{health["trace_count"]} Files</div>
+             </div>
+        </div>
+    </div>
+
+    <div class="card">
         <h2>New Session</h2>
         <div class="input-group">
             <label>Mode</label>
             <select id="mode-select">
                 <option value="research">Deep Research (Full context)</option>
-                <option value="task">Plan & Execute (SAP)</option>
-                <option value="simulation">Probe Behavior (Simulation)</option>
+                <option value="task">Task Execution (SAP)</option>
+                <option value="simulation">Probe Suite (Simulation)</option>
             </select>
             <div id="mode-explainer" style="margin-top: 8px; font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;"></div>
         </div>
@@ -773,7 +844,7 @@ async def home():
 
     <div class="card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <h2>Recent Traces</h2>
+            <h2>Replayable JSON Traces</h2>
             <a href="/api/traces" style="font-size: 0.85rem;">JSON API</a>
         </div>
         <div class="trace-list">

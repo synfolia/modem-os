@@ -1,32 +1,14 @@
-package core
+package main
 
 import (
 	"encoding/json"
 	"log"
 	"net/http"
-
-	"Maple-OS/modem_os/core/shared/types"
+	"time"
 )
 
-// StartScrollSimulation initializes a new scroll simulation
-// based on the provided scroll data.
-// It checks the trust score and genetic markers to determine
-// if a CRISPR-style mutation loop should be initiated.
-// If the trust score is too low, it composts the scroll.
-// If the scroll is a flare event and contains specific genetic markers,
-// it triggers a gene intervention simulation.
-
-func StartScrollSimulation(scroll types.Scroll) types.GeneInterventionPlan {
-	return types.GeneInterventionPlan{
-		MutationLoopID:      "coconut_loop_001",
-		TargetedGenes:       scroll.GeneticMarkers,
-		TrustAligned:        true,
-		RequiredRecalibrate: true,
-	}
-}
-
 func simulateHandler(w http.ResponseWriter, r *http.Request) {
-	var scroll types.Scroll
+	var scroll Scroll
 	if err := json.NewDecoder(r.Body).Decode(&scroll); err != nil {
 		http.Error(w, "Invalid input", http.StatusBadRequest)
 		return
@@ -38,8 +20,56 @@ func simulateHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "OK"})
+}
+
+func schemaHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	schema := map[string]interface{}{
+		"description": "Scroll Engine API for processing memory scrolls and triggering gene interventions.",
+		"endpoints": []map[string]string{
+			{
+				"method":      "POST",
+				"path":        "/simulate",
+				"description": "Submits a scroll for simulation.",
+			},
+			{
+				"method":      "GET",
+				"path":        "/health",
+				"description": "Health check.",
+			},
+			{
+				"method":      "GET",
+				"path":        "/schema",
+				"description": "Returns this schema.",
+			},
+		},
+		"types": map[string]interface{}{
+			"Scroll": Scroll{
+				ID:             "example_id",
+				Trigger:        "flare",
+				Timestamp:      time.Now(),
+				TrustScore:     0.8,
+				GeneticMarkers: []string{"ATG16L1"},
+			},
+			"GeneInterventionPlan": GeneInterventionPlan{
+				MutationLoopID:      "flare_mutation_loop",
+				TargetedGenes:       []string{"ATG16L1"},
+				TrustAligned:        true,
+				RequiredRecalibrate: false,
+			},
+		},
+	}
+	json.NewEncoder(w).Encode(schema)
+}
+
 func main() {
 	http.HandleFunc("/simulate", simulateHandler)
+	http.HandleFunc("/health", healthHandler)
+	http.HandleFunc("/schema", schemaHandler)
 	log.Println("Scroll Engine API listening on :8282")
 	log.Fatal(http.ListenAndServe(":8282", nil))
 }
