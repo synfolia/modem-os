@@ -39,7 +39,7 @@ MoDEM OS is an experimental system exploring how to:
 
 ### Partial / Stubbed
 
-- **SAP Scoring**: Framework exists but uses random values instead of learned/heuristic scoring
+- **SAP Scoring**: Framework exists and is fully wired end-to-end; current implementation intentionally uses random values as a placeholder for future heuristic or learned scoring.
 - **Task Prioritization**: Placeholder implementation
 - **Model Drift Detection**: Structure exists, logic is minimal
 - **Trust Enforcement**: Checked at scroll engine level, not fully integrated
