@@ -896,116 +896,117 @@ async def home():
         }};
 
         const lifecycleHtml = `
-        <ul class="status-checklist">
-          <li><span class="${{lifecycle.registered ? 'check' : 'pending'}}">${{lifecycle.registered ? '✓' : '○'}}</span> Registered</li>
-          <li><span class="${{lifecycle.injected ? 'check' : 'pending'}}">${{lifecycle.injected ? '✓' : '○'}}</span> Injected</li>
-          <li><span class="${{lifecycle.executed ? 'check' : 'pending'}}">${{lifecycle.executed ? '✓' : '○'}}</span> Executed</li>
-          <li><span class="${{lifecycle.analyzed ? 'check' : 'pending'}}">${{lifecycle.analyzed ? '✓' : '○'}}</span> Analyzed</li>
-          <li><span class="${{lifecycle.interpreted ? 'check' : 'pending'}}">${{lifecycle.interpreted ? '✓' : '○'}}</span> Interpreted</li>
+        <ul class="status-checklist" aria-label="Simulation Status">
+          <li><span class="${{lifecycle.registered ? 'check' : 'pending'}}" aria-hidden="true">${{lifecycle.registered ? '✓' : '○'}}</span> Registered</li>
+          <li><span class="${{lifecycle.injected ? 'check' : 'pending'}}" aria-hidden="true">${{lifecycle.injected ? '✓' : '○'}}</span> Injected</li>
+          <li><span class="${{lifecycle.executed ? 'check' : 'pending'}}" aria-hidden="true">${{lifecycle.executed ? '✓' : '○'}}</span> Executed</li>
+          <li><span class="${{lifecycle.analyzed ? 'check' : 'pending'}}" aria-hidden="true">${{lifecycle.analyzed ? '✓' : '○'}}</span> Analyzed</li>
+          <li><span class="${{lifecycle.interpreted ? 'check' : 'pending'}}" aria-hidden="true">${{lifecycle.interpreted ? '✓' : '○'}}</span> Interpreted</li>
         </ul>
         `;
 
         // 2. Generate Observations with Icons
         let observations = [];
 
-        // Success indicators (✓)
+        // Strategy Collapse
+        if (resultLower.includes("conflict") && (resultLower.includes("abandoning") || resultLower.includes("collapse") || resultLower.includes("failed"))) {{
+             observations.push({{ icon: "⚠", cls: "signal-warning", text: "Strategy collapse detected after initial reasoning" }});
+        }} else if (resultLower.includes("conflict")) {{
+             observations.push({{ icon: "⚠", cls: "signal-warning", text: "Conflicting goals detected in input constraints" }});
+        }}
+
+        // Fallback
+        if (resultLower.includes("fallback") || resultLower.includes("defaulting")) {{
+            let reason = "underspecified objective";
+            if (resultLower.includes("conflict")) reason = "conflicting constraints";
+            else if (resultLower.includes("ambiguous") || resultLower.includes("unclear")) reason = "underspecified objective";
+            else if (resultLower.includes("error")) reason = "system error";
+
+            observations.push({{ icon: "⚠", cls: "signal-warning", text: "Fallback heuristic triggered due to " + reason }});
+        }}
+
+        // Success indicators
         if (result.includes("Triggering Coconut mutation loop")) {{
             observations.push({{ icon: "✓", cls: "signal-success", text: "Downstream simulation trigger activated" }});
         }}
         if (result.includes("Scroll saved to")) {{
             observations.push({{ icon: "✓", cls: "signal-success", text: "Simulation artifact persisted" }});
         }}
-        if (result.includes("ATG16L1")) {{
-            observations.push({{ icon: "✓", cls: "signal-success", text: "Genetic marker ATG16L1 resonance detected" }});
-        }}
-        if (resultLower.includes("flare")) {{
-            observations.push({{ icon: "✓", cls: "signal-success", text: "Flare scroll pattern identified" }});
-        }}
 
-        // Warning indicators (⚠)
-        if (resultLower.includes("ambiguous") || resultLower.includes("unclear")) {{
-            observations.push({{ icon: "⚠", cls: "signal-warning", text: "Ambiguous constraints detected" }});
-        }}
-        if (resultLower.includes("conflict")) {{
-            observations.push({{ icon: "⚠", cls: "signal-warning", text: "Conflicting goals detected" }});
-        }}
-        if (resultLower.includes("fallback") || resultLower.includes("defaulting")) {{
-            observations.push({{ icon: "⚠", cls: "signal-warning", text: "Fallback heuristic triggered" }});
-        }}
-
-        // Error indicators (✖)
-        if (result.includes("Failed to reach Coconut")) {{
-            observations.push({{ icon: "✖", cls: "signal-error", text: "Simulation backend connection failed" }});
-        }}
+        // No Mapping
         if (result.includes("No actionable scroll-to-gene patterns")) {{
-            observations.push({{ icon: "✖", cls: "signal-error", text: "No scroll-to-gene mapping identified" }});
+             observations.push({{ icon: "✖", cls: "signal-error", text: "No scroll-to-gene mapping identified" }});
         }}
 
-        // Neutral/informational (•)
+        // Early Termination
+        if (result.includes("Failed to reach Coconut") || result.includes("Connection refused")) {{
+             observations.push({{ icon: "✖", cls: "signal-error", text: "Latent execution terminated early due to backend failure" }});
+        }}
+
+        // Ambiguity (if not covered by fallback)
+        if ((resultLower.includes("ambiguous") || resultLower.includes("unclear")) && !observations.some(o => o.text.includes("Fallback"))) {{
+             observations.push({{ icon: "⚠", cls: "signal-warning", text: "Ambiguous constraints identified without clear resolution" }});
+        }}
+
+        // Neutral/informational
         if (observations.length === 0) {{
             observations.push({{ icon: "•", cls: "signal-neutral", text: "Latent reasoning completed without specific event markers" }});
         }}
 
         const obsListHtml = observations.map(obs =>
-          `<li><span class="${{obs.cls}}" style="font-weight:bold; margin-right:8px;">${{obs.icon}}</span>${{obs.text}}</li>`
+          `<li><span class="${{obs.cls}}" style="font-weight:bold; margin-right:8px;" aria-hidden="true">${{obs.icon}}</span>${{obs.text}}</li>`
         ).join("");
 
-        // 3. Determine Verdict
+        // 3. Determine Verdict & Interpretation
         const hasTrigger = result.includes("Triggering Coconut mutation loop");
         const hasNoMatch = result.includes("No actionable scroll-to-gene patterns");
         const hasError = result.includes("Failed to reach Coconut");
         const hasAmbiguity = resultLower.includes("ambiguous") || resultLower.includes("unclear");
         const hasConflict = resultLower.includes("conflict");
+        const hasFallback = resultLower.includes("fallback") || resultLower.includes("defaulting");
 
         let verdictClass = "verdict-inconclusive";
         let verdictIcon = "🟡";
         let verdictText = "Inconclusive";
-        let hypothesisStatus = "inconclusive";
+        let interpretation = "";
 
         if (hasError) {{
           verdictClass = "verdict-failure";
           verdictIcon = "🔴";
           verdictText = "Failure Mode";
-          hypothesisStatus = "rejected due to infrastructure failure";
-        }} else if (hasAmbiguity || hasConflict) {{
-          verdictClass = "verdict-failure";
-          verdictIcon = "🔴";
-          verdictText = "Failure Mode";
-          hypothesisStatus = "confirmed - system detected problematic constraints";
+          interpretation = "The system correctly identified a trigger condition but execution was forcefully terminated by an infrastructure failure, preventing downstream effects.";
         }} else if (hasTrigger) {{
           verdictClass = "verdict-stable";
           verdictIcon = "🟢";
           verdictText = "Stable";
-          hypothesisStatus = "confirmed - simulation pipeline executed successfully";
+          interpretation = "The system successfully resolved the hypothesis into a concrete biological pattern and executed the corresponding simulation pipeline, indicating stable alignment.";
+        }} else if (hasFallback && (hasConflict || hasAmbiguity)) {{
+          verdictClass = "verdict-failure";
+          verdictIcon = "🔴";
+          verdictText = "Failure Mode";
+          interpretation = "This pattern suggests the planner lacks a stable decision heuristic under ambiguous or conflicting constraints, defaulting to conservative fallback behavior rather than exploratory resolution.";
+        }} else if (hasConflict) {{
+          verdictClass = "verdict-failure";
+          verdictIcon = "🔴";
+          verdictText = "Failure Mode";
+          interpretation = "The system detected mutually exclusive goals but failed to resolve a coherent strategy, resulting in a stalled execution state.";
+        }} else if (hasAmbiguity && hasNoMatch) {{
+          verdictClass = "verdict-inconclusive";
+          verdictIcon = "🟡";
+          verdictText = "Inconclusive";
+          interpretation = "The system detected ambiguity in the input constraints and correctly halted execution to avoid speculative simulation, prioritizing safety over action.";
         }} else if (hasNoMatch) {{
           verdictClass = "verdict-inconclusive";
           verdictIcon = "🟡";
           verdictText = "Inconclusive";
-          hypothesisStatus = "rejected - insufficient evidence for simulation trigger";
+          interpretation = "The system evaluated the hypothesis but found insufficient evidence or specificity to warrant a downstream simulation trigger.";
+        }} else {{
+          interpretation = "The system engaged in latent reasoning but did not reach a definitive conclusion or action state.";
         }}
 
         const verdictBadge = `<span class="verdict-pill ${{verdictClass}}">${{verdictIcon}} ${{verdictText}}</span>`;
 
-        // 4. Generate Interpretation with Hypothesis Status
-        let interpretation = `<strong>Hypothesis:</strong> <em>${{hypothesisStatus}}</em><br><br>`;
-
-        if (hasTrigger) {{
-            interpretation += "The system successfully resolved the hypothesis into a concrete biological pattern and executed the corresponding simulation pipeline.";
-        }} else if (hasNoMatch) {{
-            if (hasAmbiguity) {{
-                interpretation += "The system detected ambiguity in the input constraints and correctly halted execution to avoid speculative simulation.";
-            }} else {{
-                interpretation += "The system evaluated the hypothesis but found insufficient evidence or specificity to warrant a downstream simulation trigger.";
-            }}
-        }} else if (hasError) {{
-            interpretation += "The system correctly identified a trigger condition but was unable to complete execution due to an infrastructure failure.";
-        }} else if (hasAmbiguity || hasConflict) {{
-             interpretation += "The hypothesis successfully triggered the expected failure mode, demonstrating system safety mechanisms.";
-        }} else {{
-             interpretation += "The system engaged in latent reasoning but did not reach a definitive conclusion or action state.";
-        }}
-
-        // 5. Raw Logs (Collapsed)
+        // 4. Raw Logs (Collapsed)
         const logsHtml = `
         <details style="margin-top: 20px;">
             <summary style="font-weight: 500; color: #64748b;">Raw Execution Log</summary>
@@ -1013,7 +1014,7 @@ async def home():
         </details>
         `;
 
-        // 6. Render Complete Panel
+        // 5. Render Complete Panel
         return `
         <div class="sim-panel" id="simulation-output">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
@@ -1032,7 +1033,7 @@ async def home():
             </div>
 
             <div style="margin-bottom: 24px;">
-              <div class="sim-label" style="margin-bottom: 10px;">Observed Signals</div>
+              <div class="sim-label" style="margin-bottom: 10px;">Simulation Observations</div>
               <ul style="margin: 0; padding-left: 24px; font-size: 0.9rem; color: var(--text);">
                 ${{obsListHtml}}
               </ul>
