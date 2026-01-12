@@ -29,18 +29,44 @@ def latent_execute(sap_text: str) -> str:
 
     # Step 1: Latent reasoning via DeepSeek-R1 model
     try:
+        options = {
+            "num_predict": config.ollama_num_predict,
+            "temperature": config.ollama_temperature
+        }
+
+        request_body = {
+            "model": config.ollama_model,
+            "prompt": f"Reason in latent space about: {sap_text}. Return ≤ 5 bullets. No preamble. Be concise.",
+            "stream": config.ollama_stream,
+            "options": options
+        }
+
         response = requests.post(
             config.ollama_url,
-            json={
-                "model": config.ollama_model,
-                "prompt": f"Reason in latent space about: {sap_text}",
-                "stream": False
-            },
-            timeout=config.ollama_timeout
+            json=request_body,
+            timeout=config.ollama_timeout,
+            stream=config.ollama_stream
         )
         response.raise_for_status()
-        response_json = response.json()
-        response_text = response_json.get("response", "")
+
+        if config.ollama_stream:
+            # Handle streaming response
+            full_response = []
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        chunk = json.loads(line)
+                        if "response" in chunk:
+                            full_response.append(chunk["response"])
+                        if chunk.get("done", False):
+                            break
+                    except json.JSONDecodeError:
+                        continue
+            response_text = "".join(full_response)
+        else:
+            response_json = response.json()
+            response_text = response_json.get("response", "")
+
     except requests.exceptions.HTTPError as e:
         error_msg = f"Ollama HTTP error: {e.response.status_code}"
         if e.response.text:

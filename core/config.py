@@ -70,7 +70,10 @@ class Config:
                 "host": "localhost",
                 "port": 11434,
                 "model": "deepseek-r1:latest",
-                "timeout": 30
+                "timeout": 30,
+                "stream": False,
+                "num_predict": 220,
+                "temperature": 0.3
             },
             "scroll_engine": {
                 "host": "localhost",
@@ -94,8 +97,8 @@ class Config:
                 }
             },
             "probe_suite": {
-                "default_probe_count": 3,
-                "include_control": True,
+                "default_probe_count": 1,
+                "include_control": False,
                 "protocols": [
                     "conflict_stress",
                     "underspecification_stress",
@@ -158,6 +161,21 @@ class Config:
         return self.get("ollama.timeout", 30)
 
     @property
+    def ollama_stream(self) -> bool:
+        """Get whether to stream Ollama responses."""
+        return self.get("ollama.stream", False)
+
+    @property
+    def ollama_num_predict(self) -> int:
+        """Get max number of tokens to predict."""
+        return self.get("ollama.num_predict", 220)
+
+    @property
+    def ollama_temperature(self) -> float:
+        """Get generation temperature."""
+        return self.get("ollama.temperature", 0.3)
+
+    @property
     def scroll_engine_url(self) -> str:
         """Get full Scroll Engine API URL."""
         host = self.get("scroll_engine.host", "localhost")
@@ -183,6 +201,29 @@ class Config:
     def sap_num_proposals(self) -> int:
         """Get number of SAP proposals to generate."""
         return self.get("sap.num_proposals", 3)
+
+    @property
+    def sap_scoring_weights(self) -> Dict[str, float]:
+        """Get SAP scoring weights."""
+        return self.get("sap.scoring_weights", {
+            "plausibility": 1.0,
+            "utility": 1.0,
+            "novelty": 1.0,
+            "risk": 1.0,
+            "alignment": 1.0,
+            "efficiency": 1.0,
+            "resilience": 1.0
+        })
+
+    @property
+    def probe_default_count(self) -> int:
+        """Get default probe count."""
+        return self.get("probe_suite.default_probe_count", 1)
+
+    @property
+    def probe_include_control(self) -> bool:
+        """Get whether to include control probe by default."""
+        return self.get("probe_suite.include_control", False)
 
     @property
     def dashboard_host(self) -> str:

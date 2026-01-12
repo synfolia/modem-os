@@ -13,12 +13,21 @@ def run_local_research_ollama(prompt: str):
     config = get_config()
     print("[*] Running local research via Ollama (deepseek-r1)...")
     try:
+        options = {
+            "num_predict": config.ollama_num_predict,
+            "temperature": config.ollama_temperature
+        }
+
+        # Prepend constraints to prompt
+        constrained_prompt = f"{prompt}\n\nReturn ≤ 5 bullets. No preamble. Be concise."
+
         response = requests.post(
             config.ollama_url,
             json={
                 "model": config.ollama_model,
-                "prompt": prompt,
-                "stream": False
+                "prompt": constrained_prompt,
+                "stream": False,
+                "options": options
             },
             timeout=config.ollama_timeout
         )
