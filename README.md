@@ -160,9 +160,12 @@ python3 main.py replay <trace_filename>
 ```
 
 ### Start the Go Simulation Server (optional)
+
+The scroll engine is implemented as a Go service with a standard `cmd/` entrypoint.
+
 ```bash
 cd core/scroll_engine
-go run scroll_server.go
+go run ./cmd/scroll_server
 # Runs on port 8282
 ```
 
