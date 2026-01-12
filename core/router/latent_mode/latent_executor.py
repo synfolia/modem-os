@@ -23,13 +23,13 @@ from core.router.latent_mode.probe_suite import (
 
 def latent_execute(sap_text: str) -> str:
     """Execute a single latent reasoning task. Returns raw response text."""
-    print(f"Executing in latent mode with MAPLE OS model: {sap_text}")
+    print(f"Executing in latent mode with DeepSeek-R1 model: {sap_text}")
 
-    # Step 1: Latent reasoning via MAPLE model
+    # Step 1: Latent reasoning via DeepSeek-R1 model
     response = requests.post(
         "http://localhost:11434/api/generate",
         json={
-            "model": "maple-os-1:latest",
+            "model": "deepseek-r1:latest",
             "prompt": f"Reason in latent space about: {sap_text}",
             "stream": False
         },
@@ -38,11 +38,11 @@ def latent_execute(sap_text: str) -> str:
 
     response_json = response.json()
     response_text = response_json.get("response", "")
-    print("MAPLE Reasoning:", response_text)
+    print("DeepSeek-R1 Reasoning:", response_text)
 
     # Step 2: Gene intervention if pattern is matched
     if "flare" in response_text.lower() and "ATG16L1" in response_text:
-        print("MAPLE: Flare scroll detected with genetic resonance (ATG16L1).")
+        print("DeepSeek-R1: Flare scroll detected with genetic resonance (ATG16L1).")
         print("→ Triggering Coconut mutation loop simulation via Go bridge...")
 
         go_payload = {
@@ -76,20 +76,20 @@ def latent_execute(sap_text: str) -> str:
                         "result": result,
                         "source": "latent_execute"
                     }, f, indent=2)
-                print(f"MAPLE: Scroll saved to {out_path}")
+                print(f"DeepSeek-R1: Scroll saved to {out_path}")
             else:
                 # Handle Go server error
                 go_response.raise_for_status()
                 # Log error response
                 print(
-                    "MAPLE: Go server error:",
+                    "DeepSeek-R1: Go server error:",
                     go_response.status_code,
                     go_response.text
                 )
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
-            print("MAPLE: Failed to reach Coconut Go server:", str(e))
+            print("DeepSeek-R1: Failed to reach Coconut Go server:", str(e))
     else:
-        print("MAPLE: No actionable scroll-to-gene patterns found.")
+        print("DeepSeek-R1: No actionable scroll-to-gene patterns found.")
 
     return response_text
 
