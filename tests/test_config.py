@@ -27,7 +27,7 @@ class TestConfig(unittest.TestCase):
 
             # Check defaults are loaded
             self.assertEqual(config.ollama_model, "deepseek-r1:latest")
-            self.assertEqual(config.dashboard_port, 8080)
+            self.assertEqual(config.dashboard_port, 8347)
             self.assertIsInstance(config.genetic_markers, list)
 
     def test_config_get_method(self):

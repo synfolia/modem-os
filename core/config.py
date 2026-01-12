@@ -73,7 +73,8 @@ class Config:
                 "timeout": 30,
                 "stream": False,
                 "num_predict": 220,
-                "temperature": 0.3
+                "temperature": 0.3,
+                "probe_num_predict": 100
             },
             "scroll_engine": {
                 "host": "localhost",
@@ -174,6 +175,11 @@ class Config:
     def ollama_temperature(self) -> float:
         """Get generation temperature."""
         return self.get("ollama.temperature", 0.3)
+
+    @property
+    def ollama_probe_num_predict(self) -> int:
+        """Get max number of tokens to predict for probes (performance guardrail)."""
+        return self.get("ollama.probe_num_predict", 100)
 
     @property
     def scroll_engine_url(self) -> str:
