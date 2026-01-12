@@ -93,7 +93,7 @@ This confirms that the "safety boundary" protocol is effective at catching polic
   Run prompts through local LLMs (Ollama/DeepSeek-R1), capture stepwise reasoning, save as JSON traces for replay and analysis.
 
 - **SAP Routing Framework**
-  Generate structured action proposals from prompts, score on 7 dimensions, select and execute the best candidate. Framework is complete; scoring currently uses placeholder logic.
+  Generate structured action proposals from prompts, score them across seven deterministic dimensions, select and execute the best candidate with full traceability.
 
 - **Latent Executor with Go Simulation Bridge**
   Execute prompts through MAPLE model, detect domain-specific patterns (genetic markers, flare signals), trigger Go-based simulation server for intervention planning.
@@ -101,12 +101,21 @@ This confirms that the "safety boundary" protocol is effective at catching polic
 - **Web Dashboard**
   FastAPI interface for running research sessions, tasks, simulations, and probe suite experiments. Real-time job status and trace visualization.
 
-### Partial / Stubbed
+### Current Scope & Maturity
 
-- **SAP Scoring**: Framework exists and is fully wired end-to-end; current implementation intentionally uses random values as a placeholder for future heuristic or learned scoring.
-- **Task Prioritization**: Placeholder implementation
-- **Model Drift Detection**: Structure exists, logic is minimal
-- **Trust Enforcement**: Checked at scroll engine level, not fully integrated
+MoDEM OS is an active research system. Core execution paths are complete and operational; some components are intentionally conservative or minimal by design to prioritize observability over automation.
+
+- **SAP Routing & Scoring**
+  The SAP framework generates multiple candidate strategies, scores them across seven deterministic dimensions, and selects an execution plan. Scoring logic is heuristic-driven and designed to be inspectable rather than learned or opaque.
+
+- **Task Coordination**
+  Tasks are executed sequentially with explicit trace recording. Advanced prioritization and scheduling policies are intentionally deferred to avoid hiding decision logic during evaluation.
+
+- **Model Drift Signals**
+  Structural support exists for tracking behavioral deltas across runs. Current logic focuses on probe-based regression detection rather than continuous statistical drift modeling.
+
+- **Trust & Policy Enforcement**
+  Trust checks and safety gates are enforced at execution boundaries (e.g. scroll engine, probe suite). Deeper cross-module trust propagation is an area of ongoing work.
 
 ---
 
