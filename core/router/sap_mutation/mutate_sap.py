@@ -1,16 +1,19 @@
 import requests
 import re
+from core.config import get_config
 
 def mutate_sap(prompt, num_proposals=3):
+    config = get_config()
     print(f"Mutating SAP using DeepSeek for prompt: {prompt}")
 
     response = requests.post(
-        "http://localhost:11434/api/generate",
+        config.ollama_url,
         json={
-            "model": "deepseek-r1:latest",
+            "model": config.ollama_model,
             "prompt": f"Generate {num_proposals} creative action proposals for: {prompt}. Format with headings: ### 1. Title",
             "stream": False
-        }
+        },
+        timeout=config.ollama_timeout
     )
 
     response_json = response.json()

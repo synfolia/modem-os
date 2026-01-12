@@ -2,6 +2,7 @@ import os
 import json
 import requests
 from datetime import datetime
+from core.config import get_config
 
 TRACE_DIR = "core/research/trace_store"
 
@@ -9,15 +10,17 @@ def run_local_research_ollama(prompt: str):
     """
     Runs research locally using Ollama with deepseek-r1.
     """
+    config = get_config()
     print("[*] Running local research via Ollama (deepseek-r1)...")
     try:
         response = requests.post(
-            "http://localhost:11434/api/generate",
+            config.ollama_url,
             json={
-                "model": "deepseek-r1",
+                "model": config.ollama_model,
                 "prompt": prompt,
                 "stream": False
-            }
+            },
+            timeout=config.ollama_timeout
         )
         response.raise_for_status()
         data = response.json()

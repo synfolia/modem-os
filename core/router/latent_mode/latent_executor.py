@@ -7,6 +7,7 @@ import contextlib
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
+from core.config import get_config
 from core.router.latent_mode.probe_suite import (
     build_probe_suite,
     parse_execution_log,
@@ -23,17 +24,18 @@ from core.router.latent_mode.probe_suite import (
 
 def latent_execute(sap_text: str) -> str:
     """Execute a single latent reasoning task. Returns raw response text."""
+    config = get_config()
     print(f"Executing in latent mode with DeepSeek-R1 model: {sap_text}")
 
     # Step 1: Latent reasoning via DeepSeek-R1 model
     response = requests.post(
-        "http://localhost:11434/api/generate",
+        config.ollama_url,
         json={
-            "model": "deepseek-r1:latest",
+            "model": config.ollama_model,
             "prompt": f"Reason in latent space about: {sap_text}",
             "stream": False
         },
-        timeout=10
+        timeout=config.ollama_timeout
     )
 
     response_json = response.json()
@@ -53,9 +55,9 @@ def latent_execute(sap_text: str) -> str:
         }
         try:
             go_response = requests.post(
-                "http://localhost:8282/simulate",
+                config.scroll_engine_url,
                 json=go_payload,
-                timeout=10
+                timeout=config.scroll_engine_timeout
             )
             if go_response.ok:
                 result = go_response.json()
@@ -63,8 +65,8 @@ def latent_execute(sap_text: str) -> str:
 
                 # Scroll archive path
                 ts = datetime.utcnow().isoformat().replace(":", "-")
-                out_path = (
-                    f"scrolls/r_and_d/maria_lab/flare_trials/"
+                out_path = os.path.join(
+                    config.scroll_dir,
                     f"flare_{ts}.brs"
                 )
                 os.makedirs(os.path.dirname(out_path), exist_ok=True)
