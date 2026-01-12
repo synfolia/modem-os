@@ -886,26 +886,7 @@ async def home():
         const prompt = job.prompt || "";
         const resultLower = result.toLowerCase();
 
-        // 1. Determine Lifecycle Status (5 steps)
-        const lifecycle = {{
-          registered: true,  // Always true if job exists
-          injected: resultLower.includes("latent") || result.length > 0,
-          executed: result.includes("Latent Execution Result") || resultLower.includes("reasoning"),
-          analyzed: result.includes("No actionable") || result.includes("Triggering") || resultLower.includes("fallback") || resultLower.includes("conflict"),
-          interpreted: true  // Always true if we're rendering
-        }};
-
-        const lifecycleHtml = `
-        <ul class="status-checklist" aria-label="Simulation Status">
-          <li><span class="${{lifecycle.registered ? 'check' : 'pending'}}" aria-hidden="true">${{lifecycle.registered ? '✓' : '○'}}</span> Registered</li>
-          <li><span class="${{lifecycle.injected ? 'check' : 'pending'}}" aria-hidden="true">${{lifecycle.injected ? '✓' : '○'}}</span> Injected</li>
-          <li><span class="${{lifecycle.executed ? 'check' : 'pending'}}" aria-hidden="true">${{lifecycle.executed ? '✓' : '○'}}</span> Executed</li>
-          <li><span class="${{lifecycle.analyzed ? 'check' : 'pending'}}" aria-hidden="true">${{lifecycle.analyzed ? '✓' : '○'}}</span> Analyzed</li>
-          <li><span class="${{lifecycle.interpreted ? 'check' : 'pending'}}" aria-hidden="true">${{lifecycle.interpreted ? '✓' : '○'}}</span> Interpreted</li>
-        </ul>
-        `;
-
-        // 2. Generate Observations with Icons
+        // 1. Generate Observations with Icons
         let observations = [];
 
         // Strategy Collapse
@@ -957,7 +938,7 @@ async def home():
           `<li><span class="${{obs.cls}}" style="font-weight:bold; margin-right:8px;" aria-hidden="true">${{obs.icon}}</span>${{obs.text}}</li>`
         ).join("");
 
-        // 3. Determine Verdict & Interpretation
+        // 2. Determine Verdict & Interpretation
         const hasTrigger = result.includes("Triggering Coconut mutation loop");
         const hasNoMatch = result.includes("No actionable scroll-to-gene patterns");
         const hasError = result.includes("Failed to reach Coconut");
@@ -1018,13 +999,8 @@ async def home():
         return `
         <div class="sim-panel" id="simulation-output">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-              <h3 style="margin:0; font-size:1.1rem;">Experiment Results</h3>
+              <h3 style="margin:0; font-size:1.1rem;">System Analysis</h3>
               ${{verdictBadge}}
-            </div>
-
-            <div style="margin-bottom: 24px;">
-              <div class="sim-label" style="margin-bottom: 10px;">Simulation Status</div>
-              ${{lifecycleHtml}}
             </div>
 
             <div style="margin-bottom: 24px;">
@@ -1034,7 +1010,7 @@ async def home():
 
             <div style="margin-bottom: 24px;">
               <div class="sim-label" style="margin-bottom: 10px;">Simulation Observations</div>
-              <ul style="margin: 0; padding-left: 24px; font-size: 0.9rem; color: var(--text);">
+              <ul style="margin: 0; padding-left: 24px; font-size: 0.9rem; color: var(--text);" aria-label="Observations List">
                 ${{obsListHtml}}
               </ul>
             </div>
