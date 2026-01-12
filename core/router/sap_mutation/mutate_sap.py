@@ -7,12 +7,18 @@ def mutate_sap(prompt, num_proposals=3):
     print(f"Mutating SAP using DeepSeek for prompt: {prompt}")
 
     try:
+        options = {
+            "num_predict": config.ollama_num_predict,
+            "temperature": config.ollama_temperature
+        }
+
         response = requests.post(
             config.ollama_url,
             json={
                 "model": config.ollama_model,
-                "prompt": f"Generate {num_proposals} creative action proposals for: {prompt}. Format with headings: ### 1. Title",
-                "stream": False
+                "prompt": f"Generate {num_proposals} creative action proposals for: {prompt}. Format with headings: ### 1. Title. Be concise. No preamble.",
+                "stream": False,
+                "options": options
             },
             timeout=config.ollama_timeout
         )
