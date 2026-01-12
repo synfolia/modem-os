@@ -3,6 +3,7 @@ import json
 import requests
 from datetime import datetime
 from core.config import get_config
+from core.shared.output_cleaner import clean_output
 
 TRACE_DIR = "core/research/trace_store"
 
@@ -19,7 +20,14 @@ def run_local_research_ollama(prompt: str):
         }
 
         # Prepend constraints to prompt
-        constrained_prompt = f"{prompt}\n\nReturn ≤ 5 bullets. No preamble. Be concise."
+        constrained_prompt = (
+            f"{prompt}\n\n"
+            "Format your response as short narrative paragraphs with optional titled sections "
+            "(e.g. 'Findings', 'Context', 'Open Questions').\n"
+            "Do NOT use bullet points or checklists.\n"
+            "Do NOT include meta-instructions (e.g. 'verify intent') or step-by-step reasoning.\n"
+            "No preamble."
+        )
 
         response = requests.post(
             config.ollama_url,
@@ -33,7 +41,8 @@ def run_local_research_ollama(prompt: str):
         )
         response.raise_for_status()
         data = response.json()
-        return data.get("response", "[No response from Ollama]")
+        raw_response = data.get("response", "[No response from Ollama]")
+        return clean_output(raw_response)
     except requests.exceptions.HTTPError as e:
         error_msg = f"Ollama HTTP error: {e.response.status_code}"
         if e.response.text:
@@ -78,7 +87,7 @@ def run_deep_research(prompt: str):
             data = response.json()
 
             trace["steps"] = data.get("steps", [])
-            trace["result"] = data.get("result", "[No result returned]")
+            trace["result"] = clean_output(data.get("result", "[No result returned]"))
             used_router = True
 
         except requests.exceptions.ConnectionError:

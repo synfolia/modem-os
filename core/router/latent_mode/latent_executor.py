@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 
 from core.config import get_config
+from core.shared.output_cleaner import clean_output
 from core.router.latent_mode.probe_suite import (
     build_probe_suite,
     parse_execution_log,
@@ -22,15 +23,16 @@ from core.router.latent_mode.probe_suite import (
 )
 
 
-def latent_execute(sap_text: str) -> str:
+def latent_execute(sap_text: str, num_predict_override: Optional[int] = None) -> str:
     """Execute a single latent reasoning task. Returns raw response text."""
     config = get_config()
     print(f"Executing in latent mode with DeepSeek-R1 model: {sap_text}")
 
     # Step 1: Latent reasoning via DeepSeek-R1 model
     try:
+        num_predict = num_predict_override if num_predict_override is not None else config.ollama_num_predict
         options = {
-            "num_predict": config.ollama_num_predict,
+            "num_predict": num_predict,
             "temperature": config.ollama_temperature
         }
 
@@ -135,7 +137,7 @@ def latent_execute(sap_text: str) -> str:
     else:
         print("DeepSeek-R1: No actionable scroll-to-gene patterns found.")
 
-    return response_text
+    return clean_output(response_text)
 
 
 def execute_probe(probe: Dict[str, Any]) -> ProbeResult:
@@ -157,9 +159,11 @@ def execute_probe(probe: Dict[str, Any]) -> ProbeResult:
     output_buffer = io.StringIO()
     start_time = time.time()
 
+    config = get_config()
+
     with contextlib.redirect_stdout(output_buffer):
         try:
-            latent_execute(probe_text)
+            latent_execute(probe_text, num_predict_override=config.ollama_probe_num_predict)
         except Exception as e:
             print(f"PROBE ERROR: {str(e)}")
 

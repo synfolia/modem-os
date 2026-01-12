@@ -731,11 +731,24 @@ async def home():
 
             badge = _score_badge(s["score"])
 
+            # Trust signal badge
+            trust_signal = ""
+            # Heuristic logic for trust signal based on prompt or filename content
+            if "experiment" in s.get("preview", "").lower() or "probe" in s.get("preview", "").lower():
+                 trust_signal = '<span class="badge score-med" style="background:#e0e7ff; color:#3730a3; margin-left:8px;">Control-Compared</span>'
+            elif "execution plan" in s.get("preview", "").lower():
+                 trust_signal = '<span class="badge score-med" style="background:#f0fdf4; color:#166534; margin-left:8px;">Heuristic-Scored</span>'
+            elif "research" in s.get("preview", "").lower() or "findings" in s.get("preview", "").lower():
+                 trust_signal = '<span class="badge score-med" style="background:#fefce8; color:#854d0e; margin-left:8px;">Deep Research</span>'
+
             traces_html += f"""
             <div class="trace-item">
                 <div style="padding-top: 2px;">{badge}</div>
                 <div class="trace-main">
-                    <a href="{url}" class="trace-title">{prompt_snip}</a>
+                    <div style="display:flex; align-items:center;">
+                        <a href="{url}" class="trace-title">{prompt_snip}</a>
+                        {trust_signal}
+                    </div>
                     <div class="trace-meta">
                         {html.escape(s['filename'])} &bull; {html.escape(ts_str)}
                     </div>
@@ -1033,7 +1046,7 @@ async def home():
             </div>
 
             <div style="margin-bottom: 24px;">
-              <div class="sim-label" style="margin-bottom: 10px;">Simulation Observations</div>
+              <div class="sim-label" style="margin-bottom: 10px;">Simulation Observations <span class="badge score-high" style="margin-left:8px; font-size:0.7rem;">Deterministic Probe</span></div>
               <ul style="margin: 0; padding-left: 24px; font-size: 0.9rem; color: var(--text);">
                 ${{obsListHtml}}
               </ul>
@@ -1245,7 +1258,10 @@ async def home():
           deltaHtml = `
             <div class="delta-card">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h4 style="margin: 0; font-size: 0.95rem;">Delta vs Control</h4>
+                <div style="display: flex; align-items: center;">
+                    <h4 style="margin: 0; font-size: 0.95rem;">Delta vs Control</h4>
+                    <span class="badge score-med" style="background:#e0e7ff; color:#3730a3; margin-left:8px; font-size:0.7rem;">Control-Compared</span>
+                </div>
                 <span class="badge score-med" style="font-size: 0.75rem;">Control: ${{controlOutcome}}</span>
               </div>
               <div class="delta-grid">

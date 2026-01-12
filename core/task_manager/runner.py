@@ -1,6 +1,7 @@
 from core.router.sap_scoring.score_sap import score_sap
 from core.router.latent_mode.latent_executor import latent_execute
 from core.task_manager.task_tracker import TaskTracker
+from core.shared.output_cleaner import clean_output
 import uuid
 
 def record_branch(task_id, branch_type, branch_data):
@@ -59,41 +60,36 @@ def _render_execution_plan(scored_saps, selected_sap):
     print("\nExecution Plan")
     print("──────────────")
     print("• Candidate strategies (SAPs)")
-    print("• Scores per dimension")
-    print("• Selected plan (highlighted)")
-    print("• Execution path\n")
+    print("• Composite Scores & Top Drivers")
+    print("• Selected plan (highlighted)\n")
 
-    header = "┌──────────── Execution Plan ────────────┐"
-    width = len(header) - 2  # Internal width (40)
+    header = "┌──────────────────────── Execution Plan ────────────────────────┐"
+    width = len(header) - 2
     print(header)
 
     for sap in scored_saps:
-        title = sap['title'][:10] # Truncate title
+        title = sap['title'][:15] # Truncate title
         score = sap.get('composite_score', 0)
+        degrees = sap.get('degrees', {})
 
-        # Bar chart (max score roughly 70 based on 7 dims * 10)
-        bar_len = 10
-        filled = int((score / 70.0) * bar_len)
-        filled = max(0, min(filled, bar_len))
-        bar = "▓" * filled + "░" * (bar_len - filled)
+        # Identify top 2 contributing dimensions
+        sorted_dims = sorted(degrees.items(), key=lambda x: x[1], reverse=True)
+        top_dims = [f"{k.capitalize()}" for k, v in sorted_dims[:2] if v > 0]
+        top_dims_str = " + ".join(top_dims) if top_dims else "None"
 
-        selected_text = "  ← Selected" if sap == selected_sap else ""
+        selected_marker = ">>" if sap == selected_sap else "  "
+        selected_label = " [SELECTED]" if sap == selected_sap else ""
 
-        # Construct content: "SAP 1  ▓▓▓▓▓░  63"
-        # 6 chars for title, 1 space, 10 chars bar, 1 space, 3 chars score. Total 21.
-        content = f"{title:<6} {bar} {score:<3}{selected_text}"
+        # Format: ">> Title (Score) [Dims]"
+        # e.g. ">> Optimist... (64.5) [Utility + Novelty]"
+        line_content = f"{selected_marker} {title:<15} ({score:>5.2f}) [{top_dims_str}]{selected_label}"
 
-        # Pad right to fill the box
-        # We start printing at "│ " (2 chars)
-        # So we need to print `content` then padding then "│"
-        # Total line length should be `len(header)`
-        # content length varies due to selected_text
+        # Truncate if too long to fit in box
+        if len(line_content) > width - 2:
+            line_content = line_content[:width-5] + "..."
 
-        padding_needed = width - len(content) - 2 # -2 for leading " " and trailing " "
-        if padding_needed < 0:
-             padding_needed = 0 # Should not happen with short titles
-
-        print(f"│ {content}{' ' * padding_needed} │")
+        padding = width - len(line_content) - 2
+        print(f"│ {line_content}{' ' * max(0, padding)} │")
 
     print("└" + "─" * width + "┘\n")
 
@@ -159,6 +155,8 @@ def new_task(_prompt, latent_mode=False):
         print(f"Error during optimization: {e}")
         task_tracker.fail_task(task_id)
         return None
+
+    optimized_result = clean_output(str(optimized_result))
     print("Optimized MAPLE Result:", optimized_result)
 
     # Validate MAPLE

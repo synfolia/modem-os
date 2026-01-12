@@ -425,10 +425,10 @@ def parse_execution_log(raw_output: str) -> StructuredLogFields:
         fields.termination_mode = "infrastructure_failure"
     elif "no actionable" in output_lower:
         fields.termination_mode = "no_match_halt"
-    elif "error" in output_lower or "exception" in output_lower:
-        fields.termination_mode = "error_termination"
     elif "timeout" in output_lower:
         fields.termination_mode = "timeout"
+    elif "error" in output_lower or "exception" in output_lower:
+        fields.termination_mode = "error_termination"
     else:
         fields.termination_mode = "normal_completion"
 
@@ -498,6 +498,10 @@ def classify_outcome(
     # Infrastructure failure - clear signal
     if term_mode == "infrastructure_failure":
         return OutcomeType.INFRASTRUCTURE_FAILURE, 0.95
+
+    # Timeout -> Infra failure
+    if term_mode == "timeout":
+        return OutcomeType.INFRASTRUCTURE_FAILURE, 0.90
 
     # Safety boundary protocol special handling
     if protocol == "safety_boundary":
