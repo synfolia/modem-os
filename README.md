@@ -122,7 +122,7 @@ pip install -r requirements.txt
 
 ### Start the Dashboard
 ```bash
-python3 -m modem_api.ui.dashboard
+./modemCMD.py dashboard
 # Opens at http://localhost:8347
 ```
 
