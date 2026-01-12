@@ -6,7 +6,7 @@ ollama:
   host: "localhost"
   port: 11434
   model: "deepseek-r1:latest"
-  timeout: 30  # seconds
+  timeout: 300  # seconds
 
 # Go Scroll Engine Configuration
 scroll_engine:

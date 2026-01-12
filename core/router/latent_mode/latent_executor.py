@@ -28,18 +28,29 @@ def latent_execute(sap_text: str) -> str:
     print(f"Executing in latent mode with DeepSeek-R1 model: {sap_text}")
 
     # Step 1: Latent reasoning via DeepSeek-R1 model
-    response = requests.post(
-        config.ollama_url,
-        json={
-            "model": config.ollama_model,
-            "prompt": f"Reason in latent space about: {sap_text}",
-            "stream": False
-        },
-        timeout=config.ollama_timeout
-    )
+    try:
+        response = requests.post(
+            config.ollama_url,
+            json={
+                "model": config.ollama_model,
+                "prompt": f"Reason in latent space about: {sap_text}",
+                "stream": False
+            },
+            timeout=config.ollama_timeout
+        )
+        response.raise_for_status()
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, requests.exceptions.HTTPError) as e:
+        error_msg = f"[Error: Failed to communicate with Ollama ({config.ollama_url}): {str(e)}]"
+        print(error_msg)
+        return error_msg
 
-    response_json = response.json()
-    response_text = response_json.get("response", "")
+    try:
+        response_json = response.json()
+        response_text = response_json.get("response", "")
+    except json.JSONDecodeError:
+        error_msg = "[Error: Invalid JSON response from Ollama]"
+        print(error_msg)
+        return error_msg
     print("DeepSeek-R1 Reasoning:", response_text)
 
     # Step 2: Gene intervention if pattern is matched

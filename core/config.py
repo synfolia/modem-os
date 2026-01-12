@@ -53,7 +53,7 @@ class Config:
                 "host": "localhost",
                 "port": 11434,
                 "model": "deepseek-r1:latest",
-                "timeout": 30
+                "timeout": 300
             },
             "scroll_engine": {
                 "host": "localhost",
@@ -138,7 +138,7 @@ class Config:
     @property
     def ollama_timeout(self) -> int:
         """Get Ollama request timeout in seconds."""
-        return self.get("ollama.timeout", 30)
+        return self.get("ollama.timeout", 300)
 
     @property
     def scroll_engine_url(self) -> str:
