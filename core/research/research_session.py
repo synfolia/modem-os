@@ -8,41 +8,62 @@ from core.shared.output_cleaner import clean_output
 TRACE_DIR = "core/research/trace_store"
 
 def run_local_research_ollama(prompt: str):
-    """
-    Runs research locally using Ollama with deepseek-r1.
-    """
     config = get_config()
     print("[*] Running local research via Ollama (deepseek-r1)...")
-    try:
+
+    def _call(num_predict: int):
         options = {
-            "num_predict": config.ollama_num_predict,
-            "temperature": config.ollama_temperature
+            "num_predict": num_predict,
+            "temperature": config.ollama_temperature,
         }
 
-        # Prepend constraints to prompt
         constrained_prompt = (
             f"{prompt}\n\n"
-            "Format your response as short narrative paragraphs with optional titled sections "
+            "Write in short narrative paragraphs with optional titled sections "
             "(e.g. 'Findings', 'Context', 'Open Questions').\n"
-            "Do NOT use bullet points or checklists.\n"
-            "Do NOT include meta-instructions (e.g. 'verify intent') or step-by-step reasoning.\n"
-            "No preamble."
+            "Do NOT use bullet points.\n"
+            "Do NOT include meta-instructions.\n"
+            "No preamble.\n"
+            "Return only the answer."
         )
 
-        response = requests.post(
+        resp = requests.post(
             config.ollama_url,
             json={
                 "model": config.ollama_model,
                 "prompt": constrained_prompt,
                 "stream": False,
-                "options": options
+                "options": options,
             },
-            timeout=config.ollama_timeout
+            timeout=config.ollama_timeout,
         )
-        response.raise_for_status()
-        data = response.json()
-        raw_response = data.get("response", "[No response from Ollama]")
-        return clean_output(raw_response)
+        resp.raise_for_status()
+        data = resp.json()
+
+        raw_response = (data.get("response") or "").strip()
+        thinking = (data.get("thinking") or "").strip()
+        done_reason = (data.get("done_reason") or "").strip().lower()
+
+        text = raw_response or thinking
+        return data, (text.strip() if text else ""), done_reason
+
+    try:
+        # 1st attempt
+        data, text, done_reason = _call(config.ollama_num_predict)
+
+        # If truncated, retry once with a bigger budget
+        if done_reason == "length":
+            bump = max(config.ollama_num_predict * 3, 768)  # pick a sensible floor
+            bump = min(bump, 2048)  # guardrail
+            data2, text2, done_reason2 = _call(bump)
+            if text2:
+                return clean_output(text2)
+
+        if text:
+            return clean_output(text)
+
+        return "[Error: Ollama returned an empty response]"
+
     except requests.exceptions.HTTPError as e:
         error_msg = f"Ollama HTTP error: {e.response.status_code}"
         if e.response.text:
