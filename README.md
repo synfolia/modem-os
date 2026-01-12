@@ -1,3 +1,4 @@
+
 # MoDEM OS
 
 **Modular Decision Engine & Memory** — a safety monitoring substrate for model behavior, policy gates, and system-level evaluations.
@@ -17,6 +18,13 @@ MoDEM OS is a **modular monitoring + routing substrate** designed to audit model
 - **Offline Deployment:** Designed to run locally with sovereign models (e.g., Ollama).
 
 ---
+## Demo
+
+A short technical walkthrough demonstrating MoDEM OS running locally, including probe execution, constraint enforcement, and trace replay.
+
+▶️ Demo video: https://youtu.be/biHiOKuoLZs
+
+> Note: This is a raw technical demo intended to show real system behavior rather than polished presentation.
 
 ## Security & Safety Focus
 
