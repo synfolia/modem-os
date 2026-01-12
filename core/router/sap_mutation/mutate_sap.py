@@ -6,18 +6,46 @@ def mutate_sap(prompt, num_proposals=3):
     config = get_config()
     print(f"Mutating SAP using DeepSeek for prompt: {prompt}")
 
-    response = requests.post(
-        config.ollama_url,
-        json={
-            "model": config.ollama_model,
-            "prompt": f"Generate {num_proposals} creative action proposals for: {prompt}. Format with headings: ### 1. Title",
-            "stream": False
-        },
-        timeout=config.ollama_timeout
-    )
-
-    response_json = response.json()
-    raw_output = response_json.get("response", "")
+    try:
+        response = requests.post(
+            config.ollama_url,
+            json={
+                "model": config.ollama_model,
+                "prompt": f"Generate {num_proposals} creative action proposals for: {prompt}. Format with headings: ### 1. Title",
+                "stream": False
+            },
+            timeout=config.ollama_timeout
+        )
+        response.raise_for_status()
+        response_json = response.json()
+        raw_output = response_json.get("response", "")
+    except requests.exceptions.HTTPError as e:
+        error_msg = f"Ollama HTTP error: {e.response.status_code}"
+        if e.response.text:
+            error_msg += f" - {e.response.text[:200]}"
+        print(f"ERROR: {error_msg}")
+        return [{
+            "title": "Error",
+            "description": f"Failed to get response from Ollama - {error_msg}"
+        }]
+    except requests.exceptions.Timeout:
+        print(f"ERROR: Ollama request timed out after {config.ollama_timeout} seconds")
+        return [{
+            "title": "Error",
+            "description": f"Ollama request timed out after {config.ollama_timeout} seconds"
+        }]
+    except requests.exceptions.ConnectionError as e:
+        print(f"ERROR: Failed to connect to Ollama: {str(e)}")
+        return [{
+            "title": "Error",
+            "description": f"Failed to connect to Ollama at {config.ollama_url}"
+        }]
+    except Exception as e:
+        print(f"ERROR: Unexpected error calling Ollama: {str(e)}")
+        return [{
+            "title": "Error",
+            "description": f"Unexpected error - {str(e)}"
+        }]
 
     raw_output = re.sub(r"<think>.*?</think>", "", raw_output, flags=re.DOTALL)
 
