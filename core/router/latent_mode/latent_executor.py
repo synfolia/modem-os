@@ -22,6 +22,29 @@ from core.router.latent_mode.probe_suite import (
     experiment_results_to_dict,
 )
 
+def _ollama_text_from_payload(data: dict) -> str:
+    """
+    Extract the best user-facing text from an Ollama generate payload.
+    Some models (incl deepseek-r1) may return empty `response` but include `thinking`.
+    """
+    if not isinstance(data, dict):
+        return ""
+
+    # Standard path
+    resp = (data.get("response") or "").strip()
+    if resp:
+        return resp
+
+    # Some models put content in 'message' (chat-style)
+    msg = data.get("message")
+    if isinstance(msg, dict):
+        content = (msg.get("content") or "").strip()
+        if content:
+            return content
+
+    # Fallback: use thinking if that's all we got (better than blank)
+    thinking = (data.get("thinking") or "").strip()
+    return thinking
 
 def latent_execute(sap_text: str, num_predict_override: Optional[int] = None) -> str:
     """Execute a single latent reasoning task. Returns raw response text."""
@@ -52,22 +75,35 @@ def latent_execute(sap_text: str, num_predict_override: Optional[int] = None) ->
         response.raise_for_status()
 
         if config.ollama_stream:
-            # Handle streaming response
             full_response = []
+            saw_thinking = False
+
             for line in response.iter_lines():
-                if line:
-                    try:
-                        chunk = json.loads(line)
-                        if "response" in chunk:
-                            full_response.append(chunk["response"])
-                        if chunk.get("done", False):
-                            break
-                    except json.JSONDecodeError:
-                        continue
-            response_text = "".join(full_response)
+                if not line:
+                    continue
+                try:
+                    chunk = json.loads(line)
+
+                    # Prefer response tokens
+                    r = chunk.get("response")
+                    if isinstance(r, str) and r:
+                        full_response.append(r)
+
+                    # Some models emit content as `thinking`
+                    t = chunk.get("thinking")
+                    if isinstance(t, str) and t:
+                        saw_thinking = True
+                        full_response.append(t)
+
+                    if chunk.get("done", False):
+                        break
+                except json.JSONDecodeError:
+                    continue
+
+            response_text = "".join(full_response).strip()
         else:
             response_json = response.json()
-            response_text = response_json.get("response", "")
+            response_text = _ollama_text_from_payload(response_json)
 
     except requests.exceptions.HTTPError as e:
         error_msg = f"Ollama HTTP error: {e.response.status_code}"
@@ -84,6 +120,9 @@ def latent_execute(sap_text: str, num_predict_override: Optional[int] = None) ->
     except Exception as e:
         print(f"ERROR: Unexpected error calling Ollama: {str(e)}")
         return f"Error: Unexpected error - {str(e)}"
+    if not response_text:
+        print("[WARN] Ollama returned empty output (no `response` or `thinking`).")
+
     print("DeepSeek-R1 Reasoning:", response_text)
 
     # Step 2: Gene intervention if pattern is matched
