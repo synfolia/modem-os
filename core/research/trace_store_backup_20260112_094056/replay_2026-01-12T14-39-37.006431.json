@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-01-12T14:39:37.006431",
+  "prompt": "answer in english\ntest",
+  "steps": [
+    {
+      "action": "local_inference",
+      "model": "deepseek-r1",
+      "status": "completed"
+    }
+  ],
+  "result": "Sure, I can answer in English. What would you like to test?"
+}

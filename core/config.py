@@ -20,31 +20,48 @@ class Config:
         Args:
             config_path: Path to configuration file (default: config.yaml in project root)
         """
+        self._project_root = Path(__file__).resolve().parents[1]
         self._config_path = config_path
         self._config: Dict[str, Any] = {}
         self._load_config()
 
+
+    def _resolve_config_path(self) -> Path:
+        p = Path(self._config_path)
+
+        # If absolute path provided, use it
+        if p.is_absolute():
+            return p
+
+        # Allow env override (optional but nice)
+        env = os.getenv("MODEMOS_CONFIG")
+        if env:
+            ep = Path(env)
+            return ep if ep.is_absolute() else (self._project_root / ep)
+
+        # Otherwise resolve relative to project root (NOT CWD)
+        return self._project_root / p
+
     def _load_config(self):
-        """Load configuration from YAML file."""
-        config_file = Path(self._config_path)
+        config_file = self._resolve_config_path()
 
         if not config_file.exists():
-            print(f"[WARNING] Config file not found: {self._config_path}")
+            print(f"[WARNING] Config file not found: {config_file}")
             print("[WARNING] Using default configuration values")
             self._config = self._get_defaults()
             return
 
         try:
-            with open(config_file, 'r') as f:
-                self._config = yaml.safe_load(f) or {}
-        except yaml.YAMLError as e:
-            print(f"[ERROR] Failed to parse config file: {e}")
-            print("[WARNING] Using default configuration values")
-            self._config = self._get_defaults()
+            with open(config_file, "r") as f:
+                loaded = yaml.safe_load(f) or {}
+                if not isinstance(loaded, dict):
+                    raise ValueError(f"config root must be a mapping/dict, got {type(loaded).__name__}")
+                self._config = loaded
         except Exception as e:
             print(f"[ERROR] Failed to load config file: {e}")
             print("[WARNING] Using default configuration values")
             self._config = self._get_defaults()
+
 
     def _get_defaults(self) -> Dict[str, Any]:
         """Return default configuration values."""
@@ -88,7 +105,7 @@ class Config:
             },
             "dashboard": {
                 "host": "0.0.0.0",
-                "port": 8080,
+                "port": 8347,
                 "max_workers": 4
             },
             "storage": {
@@ -175,7 +192,7 @@ class Config:
     @property
     def dashboard_port(self) -> int:
         """Get dashboard port."""
-        return self.get("dashboard.port", 8080)
+        return self.get("dashboard.port", 8347)
 
     @property
     def dashboard_max_workers(self) -> int:
@@ -184,14 +201,13 @@ class Config:
 
     @property
     def trace_dir(self) -> str:
-        """Get trace storage directory."""
-        return self.get("storage.trace_dir", "core/research/trace_store")
+        rel = self.get("storage.trace_dir", "core/research/trace_store")
+        return str((self._project_root / rel).resolve())
 
     @property
     def scroll_dir(self) -> str:
-        """Get scroll storage directory."""
-        return self.get("storage.scroll_dir", "scrolls/r_and_d/maria_lab/flare_trials")
-
+        rel = self.get("storage.scroll_dir", "scrolls/r_and_d/maria_lab/flare_trials")
+        return str((self._project_root / rel).resolve())
 
 # Global configuration instance
 _config_instance = None
