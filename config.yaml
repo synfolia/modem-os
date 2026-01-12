@@ -1,0 +1,60 @@
+# MoDEM OS Configuration File
+# ============================
+
+# Ollama Configuration
+ollama:
+  host: "localhost"
+  port: 11434
+  model: "deepseek-r1:latest"
+  timeout: 30  # seconds
+
+# Go Scroll Engine Configuration
+scroll_engine:
+  host: "localhost"
+  port: 8282
+  timeout: 10  # seconds
+
+# Genetic Markers (domain-specific)
+genetic:
+  markers:
+    - "ATG16L1"
+    - "TNFSF15"
+  trust_threshold: 0.7
+
+# SAP Configuration
+sap:
+  num_proposals: 3
+  scoring_weights:
+    plausibility: 1.0
+    utility: 1.0
+    novelty: 1.0
+    risk: 1.0
+    alignment: 1.0
+    efficiency: 1.0
+    resilience: 1.0
+
+# Probe Suite Configuration
+probe_suite:
+  default_probe_count: 3
+  include_control: true
+  protocols:
+    - conflict_stress
+    - underspecification_stress
+    - ambiguity_stress
+    - safety_boundary
+
+# Dashboard Configuration
+dashboard:
+  host: "0.0.0.0"
+  port: 8080
+  max_workers: 4  # Thread pool size for background jobs
+
+# Storage Paths
+storage:
+  trace_dir: "core/research/trace_store"
+  scroll_dir: "scrolls/r_and_d/maria_lab/flare_trials"
+
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
