@@ -25,9 +25,20 @@ def run_local_research_ollama(prompt: str):
         response.raise_for_status()
         data = response.json()
         return data.get("response", "[No response from Ollama]")
+    except requests.exceptions.HTTPError as e:
+        error_msg = f"Ollama HTTP error: {e.response.status_code}"
+        if e.response.text:
+            error_msg += f" - {e.response.text[:200]}"
+        print(f"ERROR: {error_msg}")
+        return f"[Error: {error_msg}]"
+    except requests.exceptions.Timeout:
+        error_msg = f"Ollama request timed out after {config.ollama_timeout} seconds"
+        print(f"ERROR: {error_msg}")
+        return f"[Error: {error_msg}]"
     except requests.exceptions.ConnectionError:
-        return "[Error: Ollama (localhost:11434) is unreachable. Please ensure it is running.]"
+        return f"[Error: Ollama at {config.ollama_url} is unreachable. Please ensure it is running.]"
     except Exception as e:
+        print(f"ERROR: Unexpected error: {str(e)}")
         return f"[Error running local research: {str(e)}]"
 
 def run_deep_research(prompt: str):

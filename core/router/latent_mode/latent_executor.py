@@ -28,18 +28,34 @@ def latent_execute(sap_text: str) -> str:
     print(f"Executing in latent mode with DeepSeek-R1 model: {sap_text}")
 
     # Step 1: Latent reasoning via DeepSeek-R1 model
-    response = requests.post(
-        config.ollama_url,
-        json={
-            "model": config.ollama_model,
-            "prompt": f"Reason in latent space about: {sap_text}",
-            "stream": False
-        },
-        timeout=config.ollama_timeout
-    )
-
-    response_json = response.json()
-    response_text = response_json.get("response", "")
+    try:
+        response = requests.post(
+            config.ollama_url,
+            json={
+                "model": config.ollama_model,
+                "prompt": f"Reason in latent space about: {sap_text}",
+                "stream": False
+            },
+            timeout=config.ollama_timeout
+        )
+        response.raise_for_status()
+        response_json = response.json()
+        response_text = response_json.get("response", "")
+    except requests.exceptions.HTTPError as e:
+        error_msg = f"Ollama HTTP error: {e.response.status_code}"
+        if e.response.text:
+            error_msg += f" - {e.response.text[:200]}"
+        print(f"ERROR: {error_msg}")
+        return f"Error: Failed to get response from Ollama - {error_msg}"
+    except requests.exceptions.Timeout:
+        print(f"ERROR: Ollama request timed out after {config.ollama_timeout} seconds")
+        return f"Error: Ollama request timed out after {config.ollama_timeout} seconds"
+    except requests.exceptions.ConnectionError as e:
+        print(f"ERROR: Failed to connect to Ollama: {str(e)}")
+        return f"Error: Failed to connect to Ollama at {config.ollama_url}"
+    except Exception as e:
+        print(f"ERROR: Unexpected error calling Ollama: {str(e)}")
+        return f"Error: Unexpected error - {str(e)}"
     print("DeepSeek-R1 Reasoning:", response_text)
 
     # Step 2: Gene intervention if pattern is matched
