@@ -800,7 +800,7 @@ async def home():
     <div class="card">
         <h2>New Session</h2>
         <div class="input-group">
-            <label>Mode</label>
+            <label for="mode-select">Mode</label>
             <select id="mode-select">
                 <option value="research">Deep Research (Full context)</option>
                 <option value="task">Task Execution (SAP)</option>
@@ -810,7 +810,7 @@ async def home():
         </div>
 
         <div class="input-group">
-            <label id="prompt-label">Prompt / Objective</label>
+            <label id="prompt-label" for="prompt-input">Prompt / Objective</label>
             <textarea id="prompt-input" placeholder="Describe your research goal or task..."></textarea>
             <div id="preset-buttons" class="preset-buttons" style="display: none;">
               <button type="button" class="preset-btn" onclick="fillPreset(0)">Conflicting Goals</button>
@@ -821,7 +821,7 @@ async def home():
 
         <div id="experiment-controls" class="experiment-controls" style="display: none;">
             <div class="input-group">
-                <label>Probe Protocol</label>
+                <label for="probe-protocol">Probe Protocol</label>
                 <select id="probe-protocol">
                     <option value="conflict_stress">Conflict Stress</option>
                     <option value="underspecification_stress">Underspecification Stress</option>
@@ -830,7 +830,7 @@ async def home():
                 </select>
             </div>
             <div class="input-group">
-                <label>Probe Count</label>
+                <label for="probe-count">Probe Count</label>
                 <input type="number" id="probe-count" value="3" min="1" max="10" />
             </div>
             <div class="input-group">
@@ -898,25 +898,6 @@ async def home():
         const result = job.result || "";
         const prompt = job.prompt || "";
         const resultLower = result.toLowerCase();
-
-        // 1. Determine Lifecycle Status (5 steps)
-        const lifecycle = {{
-          registered: true,  // Always true if job exists
-          injected: resultLower.includes("latent") || result.length > 0,
-          executed: result.includes("Latent Execution Result") || resultLower.includes("reasoning"),
-          analyzed: result.includes("No actionable") || result.includes("Triggering") || resultLower.includes("fallback") || resultLower.includes("conflict"),
-          interpreted: true  // Always true if we're rendering
-        }};
-
-        const lifecycleHtml = `
-        <ul class="status-checklist" aria-label="Simulation Status">
-          <li><span class="${{lifecycle.registered ? 'check' : 'pending'}}" aria-hidden="true">${{lifecycle.registered ? '✓' : '○'}}</span> Registered</li>
-          <li><span class="${{lifecycle.injected ? 'check' : 'pending'}}" aria-hidden="true">${{lifecycle.injected ? '✓' : '○'}}</span> Injected</li>
-          <li><span class="${{lifecycle.executed ? 'check' : 'pending'}}" aria-hidden="true">${{lifecycle.executed ? '✓' : '○'}}</span> Executed</li>
-          <li><span class="${{lifecycle.analyzed ? 'check' : 'pending'}}" aria-hidden="true">${{lifecycle.analyzed ? '✓' : '○'}}</span> Analyzed</li>
-          <li><span class="${{lifecycle.interpreted ? 'check' : 'pending'}}" aria-hidden="true">${{lifecycle.interpreted ? '✓' : '○'}}</span> Interpreted</li>
-        </ul>
-        `;
 
         // 2. Generate Observations with Icons
         let observations = [];
@@ -1033,11 +1014,6 @@ async def home():
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
               <h3 style="margin:0; font-size:1.1rem;">Experiment Results</h3>
               ${{verdictBadge}}
-            </div>
-
-            <div style="margin-bottom: 24px;">
-              <div class="sim-label" style="margin-bottom: 10px;">Simulation Status</div>
-              ${{lifecycleHtml}}
             </div>
 
             <div style="margin-bottom: 24px;">
@@ -1212,7 +1188,7 @@ async def home():
           probeRows += `
             <tr class="${{rowClass}}">
               <td>
-                <span class="probe-expand" onclick="toggleProbeDetail('${{probe.probe_id}}')">
+                <span class="probe-expand" role="button" tabindex="0" onclick="toggleProbeDetail('${{probe.probe_id}}')" onkeydown="if(event.key === 'Enter' || event.key === ' ') {{ event.preventDefault(); toggleProbeDetail('${{probe.probe_id}}'); }}">
                   <strong>${{typeLabel}}</strong>
                 </span>
                 <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
