@@ -23,6 +23,7 @@ from core.shared.quality_score import quality_score
 # ---- Config ----
 TRACE_DIR = os.path.join("core", "research", "trace_store")
 MAX_RECENT_TRACES = 25
+MAX_PROMPT_LENGTH = 50000
 EXECUTOR = ThreadPoolExecutor(max_workers=1)  # keep simple: 1 job at a time
 
 app = FastAPI()
@@ -1639,6 +1640,9 @@ async def api_experiment(payload: Dict[str, Any]):
     if not prompt:
         raise HTTPException(status_code=400, detail="Missing prompt (hypothesis)")
 
+    if len(prompt) > MAX_PROMPT_LENGTH:
+        raise HTTPException(status_code=400, detail=f"Prompt too long (max {MAX_PROMPT_LENGTH} chars)")
+
     protocol = payload.get("protocol", "underspecification_stress")
     probe_count = int(payload.get("probe_count", 3))
     include_control = bool(payload.get("include_control", True))
@@ -1671,6 +1675,9 @@ def _create_job(kind: str, payload: Dict[str, Any]):
     prompt = (payload.get("prompt") or "").strip()
     if not prompt:
         raise HTTPException(status_code=400, detail="Missing prompt")
+
+    if len(prompt) > MAX_PROMPT_LENGTH:
+        raise HTTPException(status_code=400, detail=f"Prompt too long (max {MAX_PROMPT_LENGTH} chars)")
 
     job_id = uuid.uuid4().hex
     job = Job(
