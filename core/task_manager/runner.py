@@ -1,5 +1,4 @@
 from core.router.sap_scoring.score_sap import score_sap
-from core.router.sap_mutation.mutate_sap import mutate_sap
 from core.router.latent_mode.latent_executor import latent_execute
 from core.task_manager.task_tracker import TaskTracker
 from core.shared.output_cleaner import clean_output
@@ -100,9 +99,21 @@ def new_task(_prompt, latent_mode=False):
     task_tracker = TaskTracker()
     task_tracker.tasks[task_id] = {"status": "in_progress"}
 
-    # Generate dynamic SAP proposals using mutate_sap
-    print(f"Generating SAP proposals for prompt: {_prompt}")
-    saps = mutate_sap(_prompt, num_proposals=3)
+    # Example SAPs
+    saps = [
+        {
+            "title": "SAP 1",
+            "description": "Brute force approach with high redundancy",
+        },
+        {
+            "title": "SAP 2",
+            "description": "Optimized heuristic search",
+        },
+        {
+            "title": "SAP 3",
+            "description": "Experimental latent traversal",
+        },
+    ]
 
     # Print SAP proposals
     for idx, sap in enumerate(saps):
