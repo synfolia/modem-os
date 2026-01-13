@@ -192,25 +192,37 @@ go run ./cmd/scroll_server
 
 ```
 core/
-  router/
-    sap_scoring/        # 7-degree SAP evaluation (placeholder scoring)
-    sap_mutation/       # LLM-based proposal generation
-    latent_mode/
-      latent_executor.py   # MAPLE execution + Go bridge
-      probe_suite.py       # Deterministic probe generation (681 lines)
-    branchscript/       # Decision artifact recording
+  ai/
+    symbiosis/          # Model drift detection (minimal)
+    symbiotic_models/   # Model artifacts
+  evolution/            # Evolutionary algorithms
+    scroll_evo.py       # Scroll evolution logic
+    sweetness_score.py  # Fitness scoring
   research/
     research_session.py # LLM execution + trace capture
     replay_engine.py    # Trace replay with path validation
     trace_store/        # Saved JSON traces
+  router/
+    branchscript/       # Decision artifact recording
+    latent_mode/
+      latent_executor.py   # MAPLE execution + Go bridge
+      probe_suite.py       # Deterministic probe generation
+    sap_mutation/       # LLM-based proposal generation
+    sap_scoring/        # 7-degree SAP evaluation
   scroll_engine/        # Go simulation server
-  task_manager/         # Queue, tracker, runner
-  ai/symbiosis/         # Model drift detection (minimal)
+  scrolls/              # Simulation artifacts (ledger, logs)
+  shared/               # Shared utilities
+    output_cleaner.py   # Output normalization
+    quality_score.py    # Quality heuristics
+  task_manager/         # Task orchestration
+    runner.py           # Execution runner
+    task_queue.py       # Priority queue
+    task_tracker.py     # State tracking
 modem_api/
+  core/                 # API-internal core wrappers
   ui/dashboard.py       # FastAPI web interface
 main.py                 # CLI entry point
 ```
-
 ---
 
 ## Research Context
