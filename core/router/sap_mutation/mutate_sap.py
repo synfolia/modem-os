@@ -8,15 +8,27 @@ def mutate_sap(prompt, num_proposals=3):
 
     try:
         options = {
-            "num_predict": config.ollama_num_predict,
-            "temperature": config.ollama_temperature
+            "num_predict": 500,  # Increase from 220 to allow for 3 proposals
+            "temperature": 0.5   # Increase creativity for diverse proposals
         }
 
         response = requests.post(
             config.ollama_url,
             json={
                 "model": config.ollama_model,
-                "prompt": f"Generate {num_proposals} creative action proposals for: {prompt}. Format with headings: ### 1. Title. Be concise. No preamble.",
+                "prompt": f"""Generate exactly {num_proposals} different strategic action proposals for this task: {prompt}
+
+Format each proposal EXACTLY like this:
+### 1. [Title]
+[Description in 1-2 sentences]
+
+### 2. [Title]
+[Description in 1-2 sentences]
+
+### 3. [Title]
+[Description in 1-2 sentences]
+
+Be concise. No preamble or extra text.""",
                 "stream": False,
                 "options": options
             },
@@ -53,26 +65,78 @@ def mutate_sap(prompt, num_proposals=3):
             "description": f"Unexpected error - {str(e)}"
         }]
 
+    # Remove thinking tags
     raw_output = re.sub(r"<think>.*?</think>", "", raw_output, flags=re.DOTALL)
+
+    print(f"[DEBUG] Raw output length: {len(raw_output)} chars")
+    print(f"[DEBUG] Raw output preview: {raw_output[:200]}...")
 
     sap_list = []
 
+    # Try multiple parsing patterns for robustness
+    # Pattern 1: ### 1. Title format
     matches = re.split(r"###\s*\d+\.\s*", raw_output)
-    for match in matches[1:]:
-        lines = match.strip().splitlines()
-        if lines:
-            title = lines[0].strip()
-            description = " ".join(line.strip() for line in lines[1:] if line.strip())
-            sap_list.append({
-                "title": title,
-                "description": description
-            })
+    if len(matches) > 1:
+        for match in matches[1:]:
+            lines = match.strip().splitlines()
+            if lines:
+                title = lines[0].strip().rstrip('.')  # Remove trailing period
+                description = " ".join(line.strip() for line in lines[1:] if line.strip())
+                if title:  # Only add if title is not empty
+                    sap_list.append({
+                        "title": title,
+                        "description": description or "No description provided"
+                    })
 
+    # Pattern 2: Fallback - try numbered list without ###
     if not sap_list:
-        print("[Warning] No SAPs found, using raw output.")
-        sap_list = [{
-            "title": "Fallback Proposal",
-            "description": raw_output[:200]
-        }]
+        print("[DEBUG] Pattern 1 failed, trying numbered list pattern")
+        matches = re.split(r"^\d+\.\s*", raw_output, flags=re.MULTILINE)
+        if len(matches) > 1:
+            for match in matches[1:]:
+                lines = match.strip().splitlines()
+                if lines:
+                    title = lines[0].strip().rstrip('.')
+                    description = " ".join(line.strip() for line in lines[1:] if line.strip())
+                    if title:
+                        sap_list.append({
+                            "title": title,
+                            "description": description or "No description provided"
+                        })
+
+    # Final fallback: generate default proposals if parsing completely failed
+    if not sap_list:
+        print(f"[WARNING] SAP parsing failed completely. Generating {num_proposals} default proposals.")
+        base_prompt_short = prompt[:50] if len(prompt) > 50 else prompt
+        sap_list = [
+            {
+                "title": f"Direct Implementation",
+                "description": f"Implement the requested task directly: {base_prompt_short}"
+            },
+            {
+                "title": f"Optimized Approach",
+                "description": f"Optimize and refine the implementation for better performance and reliability"
+            },
+            {
+                "title": f"Experimental Solution",
+                "description": f"Explore innovative alternatives and experimental techniques"
+            }
+        ][:num_proposals]
+
+    # Ensure we have exactly num_proposals by padding or truncating
+    if len(sap_list) < num_proposals:
+        print(f"[WARNING] Only found {len(sap_list)} SAPs, padding to {num_proposals}")
+        while len(sap_list) < num_proposals:
+            sap_list.append({
+                "title": f"Alternative Approach {len(sap_list) + 1}",
+                "description": f"Additional strategic approach to the task"
+            })
+    elif len(sap_list) > num_proposals:
+        print(f"[INFO] Found {len(sap_list)} SAPs, truncating to {num_proposals}")
+        sap_list = sap_list[:num_proposals]
+
+    print(f"[INFO] Successfully generated {len(sap_list)} SAP proposals")
+    for idx, sap in enumerate(sap_list, 1):
+        print(f"  SAP {idx}: {sap['title'][:40]}...")
 
     return sap_list
