@@ -7,6 +7,10 @@ ollama:
   port: 11434
   model: "deepseek-r1:latest"
   timeout: 120  # seconds
+  stream: true  # Enable streaming for faster time-to-first-token
+  num_predict: 220  # Max tokens (performance optimization)
+  temperature: 0.3  # Determinism (performance optimization)
+  probe_num_predict: 100  # Faster probes
 
 # Go Scroll Engine Configuration
 scroll_engine:
@@ -35,8 +39,8 @@ sap:
 
 # Probe Suite Configuration
 probe_suite:
-  default_probe_count: 3
-  include_control: true
+  default_probe_count: 1  # Reduced for performance (was 3)
+  include_control: false  # Disabled for performance (was true)
   protocols:
     - conflict_stress
     - underspecification_stress
